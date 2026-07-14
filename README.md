@@ -1,0 +1,24 @@
+# A·R·I Desktop
+
+The desktop client for [A·R·I](https://github.com/ari-labz/A.R.I). It connects to an A·R·I server — running on the same machine or elsewhere on your network — and gives you the chat and voice-mode interface as a native app instead of a browser tab. The interface (including the voice-mode Orb) is served by the server itself, so you get the same experience in the browser or in this app.
+
+This repo holds two projects:
+
+- **`ARI.Desktop`** — the Electron desktop app.
+- **`ARI.Desktop.Installer`** — a small companion app that installs, updates, and downgrades the desktop app. It reads this repo's GitHub Releases so you can pick which version to run.
+
+## Requirements
+
+- A running [A·R·I server](https://github.com/ari-labz/A.R.I).
+- [Bun](https://bun.sh) (the dev scripts use it).
+
+## Development
+
+```sh
+cd ARI.Desktop
+./dev.sh
+```
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
