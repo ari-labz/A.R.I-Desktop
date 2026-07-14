@@ -9,6 +9,10 @@ const { execFile, spawn } = require("child_process")
 const OWNER = "ari-labz"
 const REPO  = "A.R.I-Desktop"
 
+// The GitHub API needs a token only while the repo is private. Set this to false when the
+// repo goes public — the installer then fetches releases anonymously and never asks for a token.
+const REPO_PRIVATE = true
+
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 function getBaseDir() {
@@ -48,6 +52,8 @@ app.on("window-all-closed", () => app.quit())
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 
+ipcMain.handle("needs-token", () => REPO_PRIVATE)
+
 ipcMain.handle("get-token", () => {
     const env = process.env.GITHUB_TOKEN
     if (env?.trim()) return env.trim()
@@ -69,7 +75,7 @@ ipcMain.handle("fetch-release", async (_, token) => {
             path: `/repos/${OWNER}/${REPO}/releases?per_page=100`,
             headers: {
                 "User-Agent":           "ARILauncher/1.0",
-                "Authorization":        `token ${token}`,
+                ...(token ? { "Authorization": `token ${token}` } : {}),
                 "X-GitHub-Api-Version": "2022-11-28",
                 "Accept":               "application/vnd.github+json",
             },
@@ -182,7 +188,7 @@ function downloadAsset(token, assetId, destPath, onProgress) {
             path: `/repos/${OWNER}/${REPO}/releases/assets/${assetId}`,
             headers: {
                 "User-Agent":           "ARILauncher/1.0",
-                "Authorization":        `token ${token}`,
+                ...(token ? { "Authorization": `token ${token}` } : {}),
                 "X-GitHub-Api-Version": "2022-11-28",
                 "Accept":               "application/octet-stream",
             },

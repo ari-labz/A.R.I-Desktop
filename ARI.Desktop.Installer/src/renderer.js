@@ -59,8 +59,10 @@ document.getElementById("btn-retry").addEventListener("click", () => {
 })
 
 async function start() {
+    // A token is only needed while the repo is private (REPO_PRIVATE in main.js).
+    const needsToken = await window.launcher.needsToken()
     const token = await window.launcher.getToken()
-    if (!token) { show("token"); return }
+    if (needsToken && !token) { show("token"); return }
     await run(token)
 }
 

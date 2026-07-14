@@ -12,19 +12,6 @@ const eb         = path.join(__dirname, "node_modules", ".bin", "electron-builde
 fs.mkdirSync(versionDir, { recursive: true })
 fs.mkdirSync(tmpDir,     { recursive: true })
 
-// ── Bump RequiredClientVersion in InfoController ──────────────────────────────
-
-const infoController = path.join(repoRoot, "ARI.API", "Controllers", "InfoController.cs")
-const infoSrc = fs.readFileSync(infoController, "utf8")
-const updatedInfo = infoSrc.replace(
-    /private const string RequiredClientVersion = "[^"]+";/,
-    `private const string RequiredClientVersion = "${version}";`
-)
-if (updatedInfo !== infoSrc) {
-    fs.writeFileSync(infoController, updatedInfo, "utf8")
-    console.log(`\n── Bumped RequiredClientVersion to ${version}\n`)
-}
-
 // ── Electron builds ───────────────────────────────────────────────────────────
 
 const platforms = [
@@ -35,7 +22,7 @@ const platforms = [
 
 for (const { flag, zip } of platforms) {
     console.log(`\n── Building ARI ${zip}\n`)
-    execSync(`"${eb}" ${flag} --config.directories.output="${tmpDir}"`, {
+    execSync(`bunx electron-builder ${flag} --config.directories.output="${tmpDir}"`, {
         stdio: "inherit",
         cwd:   __dirname,
     })
@@ -59,14 +46,14 @@ if (!fs.existsSync(launcherEb)) {
 }
 
 const launcherPlatforms = [
-    { flag: "--win   --x64", zip: "ARILauncher-win.zip"   },
-    { flag: "--linux --x64", zip: "ARILauncher-linux.zip" },
-    { flag: "--mac",         zip: "ARILauncher-mac.zip"   },
+    { flag: "--win   --x64", zip: "ARIInstaller-win.zip"   },
+    { flag: "--linux --x64", zip: "ARIInstaller-linux.zip" },
+    { flag: "--mac",         zip: "ARIInstaller-mac.zip"   },
 ]
 
 for (const { flag, zip } of launcherPlatforms) {
-    console.log(`\n── Building Launcher ${zip}\n`)
-    execSync(`"${launcherEb}" ${flag} --config.directories.output="${tmpDir}"`, {
+    console.log(`\n── Building Installer ${zip}\n`)
+    execSync(`bunx electron-builder ${flag} --config.directories.output="${tmpDir}"`, {
         stdio: "inherit",
         cwd:   launcherDir,
     })

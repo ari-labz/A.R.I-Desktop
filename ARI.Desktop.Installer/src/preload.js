@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron")
 
 contextBridge.exposeInMainWorld("launcher", {
+    needsToken:         ()           => ipcRenderer.invoke("needs-token"),
     getToken:           ()           => ipcRenderer.invoke("get-token"),
     saveToken:          (t)          => ipcRenderer.invoke("save-token", t),
     fetchRelease:       (t)          => ipcRenderer.invoke("fetch-release", t),

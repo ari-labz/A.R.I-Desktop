@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+    <title>Connect to a server</title>
+    <link rel="stylesheet" href="picker.css" />
+</head>
+<body>
+    <div id="app">
+        <div id="header">
+            <img id="logo" src="../assets/icon.png" alt="ARI" />
+            <div id="wordmark">A·R·I</div>
+            <div id="subtitle">Connect to a server</div>
+        </div>
+
+        <div id="server-list"></div>
+
+        <button id="btn-add" class="secondary">+ Add server</button>
+
+        <!-- Add / edit form -->
+        <div id="form" class="hidden">
+            <input id="f-name" type="text" placeholder="Name (e.g. Home server)" spellcheck="false" />
+            <input id="f-url" type="text" placeholder="http://192.168.1.50:5074  or  https://a-r-i.ai" spellcheck="false" />
+            <div class="form-actions">
+                <button id="f-save">Save</button>
+                <button id="f-cancel" class="secondary">Cancel</button>
+            </div>
+        </div>
+
+        <label class="toggle">
+            <input type="checkbox" id="remember" />
+            Skip this next time — reconnect to my choice automatically
+        </label>
+
+        <button id="btn-connect" disabled>Connect</button>
+    </div>
+    <script src="picker.js"></script>
+</body>
+</html>

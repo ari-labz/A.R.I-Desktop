@@ -1,4 +1,6 @@
 node_modules/
 dist/
+Builds/
+.idea/
 *.log
 .DS_Store

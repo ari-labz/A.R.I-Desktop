@@ -37,6 +37,9 @@ const isDev = process.env.NODE_ENV === "development"
 
 let win
 let splash
+let picker
+let pickerResolve = null
+let currentEndpoint = null
 let appReadyResolve
 const appReady = new Promise(resolve => { appReadyResolve = resolve })
 
@@ -108,11 +111,12 @@ async function waitForAri(endpoint) {
     }
 }
 
-async function createWindow() {
-    const endpoint = isDev ? "http://localhost:5074" : store.get("endpoint", "https://a-r-i.ai")
+async function createWindow(endpoint) {
     log.info(`Endpoint: ${endpoint}`)
 
     createSplash()
+    // Splash is up, so there's always a window — safe to tear down the picker now.
+    if (picker && !picker.isDestroyed()) { picker.destroy(); picker = null }
     await waitForAri(endpoint)
 
     log.info("Creating main window")
@@ -137,8 +141,14 @@ async function createWindow() {
 
     win.webContents.on("did-start-loading",  () => wlog.info(`Loading ${endpoint} …`))
     win.webContents.on("did-finish-load",    () => wlog.info("Page loaded successfully"))
-    win.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    win.webContents.on("did-fail-load", (_e, code, desc, url, isMainFrame) => {
         wlog.error(`Page failed to load: ${desc} (${code}) — ${url}`)
+        // Remembered server unreachable → drop back to the picker so another can be chosen.
+        // -3 is ERR_ABORTED (normal during navigation), not a real failure.
+        if (isMainFrame && code !== -3 && !isDev) {
+            wlog.warn("Main frame failed to load — returning to server picker")
+            returnToPicker()
+        }
     })
     win.webContents.on("render-process-gone", (_e, details) => {
         wlog.error(`Renderer process gone: reason=${details.reason}  exitCode=${details.exitCode}`)
@@ -173,13 +183,89 @@ async function createWindow() {
     }, 15_000)
 }
 
-app.whenReady().then(() => {
+// ── Server picker (choose which ARI server to connect to) ─────────────────────
+
+function genServerId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+}
+
+function loadServers() {
+    let servers = store.get("servers", null)
+    if (!Array.isArray(servers)) servers = []
+    if (servers.length === 0) {
+        // Migrate the legacy single endpoint into the new multi-server list.
+        const legacy = store.get("endpoint", "") || "https://a-r-i.ai"
+        servers = [{ id: genServerId(), name: "My Server", url: legacy }]
+    }
+    // In dev, always offer the local server as a one-click pick.
+    if (isDev && !servers.some(s => s.url === "http://localhost:5074")) {
+        servers.unshift({ id: genServerId(), name: "Local dev", url: "http://localhost:5074" })
+    }
+    store.set("servers", servers)
+    return servers
+}
+
+// A remembered last server → straight through; otherwise show the picker.
+function chooseEndpoint() {
+    const servers = loadServers()
+    if (store.get("rememberLast", false)) {
+        const last = servers.find(s => s.id === store.get("lastServerId", null))
+        if (last) { log.info(`Auto-connecting to remembered server: ${last.url}`); return Promise.resolve(last.url) }
+    }
+    return showPicker()
+}
+
+function showPicker() {
+    log.info("Showing server picker")
+    return new Promise(resolve => {
+        pickerResolve = resolve
+        picker = new BrowserWindow({
+            width: 460, height: 480, resizable: false,
+            titleBarStyle: "hidden", trafficLightPosition: { x: 16, y: 16 },
+            backgroundColor: "#1b2e38",
+            icon: path.join(__dirname, "../assets/icon.png"),
+            webPreferences: {
+                preload: path.join(__dirname, "picker-preload.js"),
+                contextIsolation: true,
+            },
+        })
+        picker.loadFile(path.join(__dirname, "picker.html"))
+        picker.on("closed", () => {
+            // Closed without connecting → nothing to fall back to; quit.
+            if (pickerResolve) { log.info("Picker closed without a selection — quitting"); app.quit() }
+            picker = null
+        })
+    })
+}
+
+// Called when a remembered server is unreachable — forget it and re-show the picker.
+async function returnToPicker() {
+    store.set("rememberLast", false)
+    if (win && !win.isDestroyed()) { win.destroy(); win = null }
+    currentEndpoint = await showPicker()
+    createWindow(currentEndpoint)
+}
+
+ipcMain.handle("servers:list", () => loadServers())
+ipcMain.handle("servers:save", (_e, servers) => { store.set("servers", servers); return true })
+ipcMain.handle("servers:connect", (_e, { id, url, remember }) => {
+    log.info(`servers:connect → ${url} (remember=${!!remember})`)
+    store.set("lastServerId", id)
+    store.set("rememberLast", !!remember)
+    const resolve = pickerResolve
+    pickerResolve = null
+    if (picker && !picker.isDestroyed()) picker.hide()
+    resolve?.(url)
+})
+
+app.whenReady().then(async () => {
     log.info("Electron app ready")
-    createWindow()
+    currentEndpoint = await chooseEndpoint()
+    createWindow(currentEndpoint)
     app.on("activate", () => {
-        if (BrowserWindow.getAllWindows().filter(w => w !== splash).length === 0) {
+        if (BrowserWindow.getAllWindows().filter(w => w !== splash && w !== picker).length === 0) {
             log.info("Re-creating window on activate")
-            createWindow()
+            createWindow(currentEndpoint)
         }
     })
 })
