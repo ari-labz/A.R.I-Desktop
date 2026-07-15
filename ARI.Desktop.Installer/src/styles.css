@@ -41,6 +41,14 @@ body {
     color: #e2ecf0;
 }
 
+#subtitle {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5a7a8a;
+    margin-top: 6px;
+}
+
 .screen {
     width: 100%;
     display: flex;

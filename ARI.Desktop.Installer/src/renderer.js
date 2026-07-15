@@ -76,7 +76,7 @@ async function run(token) {
     try {
         release = await window.launcher.fetchRelease(token)
     } catch (e) {
-        if (e.message === "TOKEN_INVALID") {
+        if (e.message.includes("TOKEN_INVALID")) {
             tokenInput.value = ""
             document.getElementById("token-message").textContent =
                 "Token is invalid or expired. Please enter a new one."
