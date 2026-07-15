@@ -13,6 +13,11 @@ const REPO  = "A.R.I-Desktop"
 // repo goes public — the installer then fetches releases anonymously and never asks for a token.
 const REPO_PRIVATE = true
 
+// App releases are tagged ARI_Desktop_v<ver> (pre-releases). The installer's own releases are
+// ARI_Desktop_Installer_v<ver>, excluded because they don't start with this prefix.
+const APP_PREFIX = "ARI_Desktop_v"
+const verFromTag = tag => tag.slice(APP_PREFIX.length)
+
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 function getBaseDir() {
@@ -92,11 +97,12 @@ ipcMain.handle("fetch-release", async (_, token) => {
                     const releases = JSON.parse(data)
                     if (!Array.isArray(releases) || releases.length === 0)
                         return reject(new Error("No releases found on GitHub."))
-                    // GitHub's list order is unreliable (sorts by tag ref date, not version),
-                    // so pick the highest semver rather than releases[0].
-                    const r = releases
-                        .filter(x => !x.draft)
-                        .sort((a, b) => compareVersions(b.tag_name, a.tag_name))[0]
+                    // Only app releases (ARI_Desktop_v*); pick the highest version.
+                    const apps = releases
+                        .filter(x => !x.draft && x.tag_name.startsWith(APP_PREFIX))
+                        .sort((a, b) => compareVersions(verFromTag(b.tag_name), verFromTag(a.tag_name)))
+                    if (apps.length === 0) return reject(new Error("No app versions found on GitHub."))
+                    const r = apps[0]
                     resolve({ tagName: r.tag_name, assets: r.assets.map(a => ({ id: a.id, name: a.name })) })
                 } catch (e) {
                     reject(new Error("Failed to parse GitHub response."))
@@ -107,13 +113,13 @@ ipcMain.handle("fetch-release", async (_, token) => {
 })
 
 ipcMain.handle("version-installed", (_, tagName) => {
-    const ver = tagName.replace(/^v/, "")
+    const ver = verFromTag(tagName)
     const dir = path.join(baseDir, ver)
     return fs.existsSync(dir) && fs.readdirSync(dir).length > 0
 })
 
 ipcMain.handle("download-and-install", async (event, token, release) => {
-    const ver      = release.tagName.replace(/^v/, "")
+    const ver      = verFromTag(release.tagName)
     const assetName = getAssetName(ver)
     const asset    = release.assets.find(a => a.name === assetName)
 
@@ -176,9 +182,9 @@ function compareVersions(a, b) {
 }
 
 function getAssetName(version) {
-    if (process.platform === "win32")  return `ARI-${version}-win.zip`
-    if (process.platform === "darwin") return `ARI-${version}-mac.zip`
-    return `ARI-${version}-linux.zip`
+    if (process.platform === "win32")  return `ARI_Desktop_v${version}_win.zip`
+    if (process.platform === "darwin") return `ARI_Desktop_v${version}_mac.zip`
+    return `ARI_Desktop_v${version}_linux.zip`
 }
 
 function downloadAsset(token, assetId, destPath, onProgress) {

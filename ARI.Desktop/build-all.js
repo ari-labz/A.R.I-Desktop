@@ -4,6 +4,7 @@ const path         = require("path")
 const { version }  = require("./package.json")
 
 const repoRoot   = path.join(__dirname, "..")
+const installerVersion = require(path.join(repoRoot, "ARI.Desktop.Installer", "package.json")).version
 const buildsDir  = path.join(repoRoot, "Builds")
 const versionDir = path.join(buildsDir, `v${version}`)
 const tmpDir     = path.join(versionDir, ".tmp")
@@ -15,9 +16,9 @@ fs.mkdirSync(tmpDir,     { recursive: true })
 // ── Electron builds ───────────────────────────────────────────────────────────
 
 const platforms = [
-    { flag: "--win   --x64", zip: `ARI-${version}-win.zip`   },
-    { flag: "--linux --x64", zip: `ARI-${version}-linux.zip` },
-    { flag: "--mac",         zip: `ARI-${version}-mac.zip`   },
+    { flag: "--win   --x64", zip: `ARI_Desktop_v${version}_win.zip`   },
+    { flag: "--linux --x64", zip: `ARI_Desktop_v${version}_linux.zip` },
+    { flag: "--mac",         zip: `ARI_Desktop_v${version}_mac.zip`   },
 ]
 
 for (const { flag, zip } of platforms) {
@@ -46,9 +47,9 @@ if (!fs.existsSync(launcherEb)) {
 }
 
 const launcherPlatforms = [
-    { flag: "--win   --x64", zip: "ARIInstaller-win.zip"   },
-    { flag: "--linux --x64", zip: "ARIInstaller-linux.zip" },
-    { flag: "--mac",         zip: "ARIInstaller-mac.zip"   },
+    { flag: "--win   --x64", zip: `ARI_Desktop_Installer_v${installerVersion}_win.zip`   },
+    { flag: "--linux --x64", zip: `ARI_Desktop_Installer_v${installerVersion}_linux.zip` },
+    { flag: "--mac",         zip: `ARI_Desktop_Installer_v${installerVersion}_mac.zip`   },
 ]
 
 for (const { flag, zip } of launcherPlatforms) {
