@@ -76,7 +76,9 @@ function createSplash() {
     })
     splash.loadFile(path.join(__dirname, "splash.html"))
     splash.webContents.on("did-fail-load", (_e, code, desc) => {
-        log.error(`Splash failed to load: ${desc} (${code})`)
+        // Splash is cosmetic — createWindow proceeds to the main window regardless, so this is a
+        // "something went wrong" not a module failure.
+        log.warn(`Splash failed to load: ${desc} (${code})`)
     })
 }
 
