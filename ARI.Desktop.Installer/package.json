@@ -1,6 +1,6 @@
 {
   "name": "ari-desktop-installer",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "ARI Desktop Installer",
   "author": "Xywren",
   "private": true,
@@ -19,7 +19,8 @@
     "icon": "assets/icon.png",
     "directories": { "output": "dist" },
     "files": ["src/**/*", "assets/**/*"],
-    "mac":   { "target": "dmg", "icon": "assets/icon.icns", "artifactName": "ARIInstaller-mac.${ext}" },
+    "afterPack": "./afterPack.js",
+    "mac":   { "target": "dmg", "icon": "assets/icon.icns", "identity": null, "artifactName": "ARIInstaller-mac.${ext}" },
     "win":   { "target": "zip", "artifactName": "ARIInstaller-win.${ext}" },
     "linux": { "target": "zip", "artifactName": "ARIInstaller-linux.${ext}" }
   }
