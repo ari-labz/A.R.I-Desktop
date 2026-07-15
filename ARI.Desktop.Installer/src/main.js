@@ -155,7 +155,10 @@ ipcMain.handle("download-and-install", async (event, token, release, options) =>
         event.sender.send("status", "Adding to Applications…")
         try { await addShortcut(versionDir) } catch (e) { /* best-effort */ }
     }
-    // The desktop app is never auto-launched — the user opens it from the done screen.
+    if (options?.startApp) {
+        event.sender.send("status", "Starting A·R·I Desktop…")
+        try { launch(versionDir) } catch (e) { /* best-effort */ }
+    }
     return { version: ver }
 })
 

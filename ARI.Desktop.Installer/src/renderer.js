@@ -100,8 +100,10 @@ async function install() {
     setProgress(0, 0, 0)
     progressLabel.textContent = ""
 
+    const startApp = $("toggle-start").checked
     const options = {
         addShortcut: $("toggle-shortcut").checked,
+        startApp,
     }
     try {
         installed = await window.installer.downloadAndInstall(token, selected, options)
@@ -109,6 +111,9 @@ async function install() {
         showError(e.message)
         return
     }
+    // main.js already launched the app when startApp is checked — nothing left for the
+    // user to do, so close the installer instead of showing the done screen.
+    if (startApp) { window.close(); return }
     $("done-text").innerHTML = `A·R·I Desktop <b>${installed.version}</b> installed.`
     show("done")
 }
