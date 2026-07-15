@@ -47,20 +47,20 @@ if (!fs.existsSync(launcherEb)) {
 }
 
 const launcherPlatforms = [
-    { flag: "--win   --x64", zip: `ARI_Desktop_Installer_v${installerVersion}_win.zip`   },
-    { flag: "--linux --x64", zip: `ARI_Desktop_Installer_v${installerVersion}_linux.zip` },
-    { flag: "--mac",         zip: `ARI_Desktop_Installer_v${installerVersion}_mac.zip`   },
+    { flag: "--win   --x64", plat: "win"   },
+    { flag: "--linux --x64", plat: "linux" },
+    { flag: "--mac",         plat: "mac"   },   // ships a .dmg
 ]
 
-for (const { flag, zip } of launcherPlatforms) {
-    console.log(`\n── Building Installer ${zip}\n`)
+for (const { flag, plat } of launcherPlatforms) {
+    console.log(`\n── Building Installer ${plat}\n`)
     execSync(`bunx electron-builder ${flag} --config.directories.output="${tmpDir}"`, {
         stdio: "inherit",
         cwd:   launcherDir,
     })
-    const built = fs.readdirSync(tmpDir).find(f => f.endsWith(".zip"))
-    if (!built) throw new Error(`No zip found after building launcher ${zip}`)
-    fs.renameSync(path.join(tmpDir, built), path.join(versionDir, zip))
+    const built = fs.readdirSync(tmpDir).find(f => f.endsWith(".dmg") || f.endsWith(".zip"))
+    if (!built) throw new Error(`No installer artifact for ${plat}`)
+    fs.renameSync(path.join(tmpDir, built), path.join(versionDir, `ARI_Desktop_Installer_v${installerVersion}_${plat}${path.extname(built)}`))
     fs.rmSync(tmpDir, { recursive: true, force: true })
     fs.mkdirSync(tmpDir, { recursive: true })
 }

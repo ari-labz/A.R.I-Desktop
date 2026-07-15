@@ -20,7 +20,7 @@
   },
   "build": {
     "appId":       "ai.ari.desktop",
-    "productName": "ARI",
+    "productName": "A.R.I Desktop",
     "icon":        "assets/icon.png",
     "directories": { "output": "dist" },
     "files": ["src/**/*", "assets/**/*"],

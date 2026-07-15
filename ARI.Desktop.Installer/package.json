@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "ai.ari.desktop.installer",
-    "productName": "ARI Installer",
+    "productName": "A.R.I Desktop Installer",
     "icon": "assets/icon.png",
     "directories": { "output": "dist" },
     "files": ["src/**/*", "assets/**/*"],

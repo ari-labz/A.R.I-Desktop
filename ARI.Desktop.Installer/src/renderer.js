@@ -1,14 +1,20 @@
 const screens = {
     token:    document.getElementById("screen-token"),
+    main:     document.getElementById("screen-main"),
     progress: document.getElementById("screen-progress"),
+    done:     document.getElementById("screen-done"),
     error:    document.getElementById("screen-error"),
 }
 
-const statusText    = document.getElementById("status-text")
-const progressBar   = document.getElementById("progress-bar")
-const progressLabel = document.getElementById("progress-label")
-const errorText     = document.getElementById("error-text")
-const tokenInput    = document.getElementById("token-input")
+const $ = id => document.getElementById(id)
+const statusText    = $("status-text")
+const progressBar   = $("progress-bar")
+const progressLabel = $("progress-label")
+
+let token       = null
+let releases    = []        // sorted newest-first
+let installed   = null      // { version, protocol } | null
+let selected    = null      // release object chosen from the list
 
 function show(name) {
     for (const [k, el] of Object.entries(screens))
@@ -25,94 +31,153 @@ function setProgress(pct, received, total) {
     }
 }
 
-function showError(msg, allowRetry = true) {
-    errorText.textContent = msg
-    document.getElementById("btn-retry").style.display = allowRetry ? "" : "none"
+function showError(msg) {
+    $("error-text").textContent = msg
     show("error")
 }
 
-window.launcher.onProgress(({ pct, received, total }) => setProgress(pct, received, total))
-window.launcher.onStatus(s => setStatus(s))
+window.installer.onProgress(({ pct, received, total }) => setProgress(pct, received, total))
+window.installer.onStatus(s => setStatus(s))
 
-document.getElementById("btn-save-token").addEventListener("click", async () => {
-    const t = tokenInput.value.trim()
-    if (!t) return
-    await window.launcher.saveToken(t)
-    show("progress")
-    await run(t)
-})
+// ── Main screen rendering ────────────────────────────────────────────────────
 
-tokenInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") document.getElementById("btn-save-token").click()
-})
-
-document.getElementById("token-help").addEventListener("click", e => {
-    e.preventDefault()
-    // Open in default browser via shell - not possible here directly,
-    // but the text gives enough context
-    alert("Go to github.com/settings/tokens and create a token with the 'repo' scope.")
-})
-
-document.getElementById("btn-retry").addEventListener("click", () => {
-    show("progress")
-    start()
-})
-
-async function start() {
-    // A token is only needed while the repo is private (REPO_PRIVATE in main.js).
-    const needsToken = await window.launcher.needsToken()
-    const token = await window.launcher.getToken()
-    if (needsToken && !token) { show("token"); return }
-    await run(token)
+function renderInstalled() {
+    if (installed)
+        $("installed-line").innerHTML = `A·R·I Desktop <b>${installed.version}</b>`
+    else
+        $("installed-line").innerHTML = `<span class="muted">None installed</span>`
 }
 
-async function run(token) {
+function renderVersionList() {
+    const list = $("version-list")
+    list.innerHTML = ""
+    for (const r of releases) {
+        const row = document.createElement("div")
+        row.className = "version-row"
+        if (selected && selected.tagName === r.tagName) row.classList.add("active")
+
+        const badges = []
+        if (r === releases[0]) badges.push(`<span class="badge">latest</span>`)
+        if (installed && installed.version === r.version) badges.push(`<span class="badge installed">installed</span>`)
+        if (r.prerelease) badges.push(`<span class="badge pre">beta</span>`)
+
+        row.innerHTML =
+            `<span class="ver">${r.version}</span>` +
+            `<span class="badges">${badges.join("")}</span>`
+        row.addEventListener("click", () => selectVersion(r))
+        list.appendChild(row)
+    }
+}
+
+function selectVersion(r) {
+    selected = r
+    renderVersionList()
+    $("selected-line").classList.remove("hidden")
+    $("selected-line").innerHTML = `Selected <b>${r.version}</b>`
+    const btn = $("btn-install")
+    btn.classList.remove("hidden")
+    btn.textContent = `Install ${r.version}`
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+
+$("btn-select-version").addEventListener("click", () => {
+    $("version-list").classList.toggle("hidden")
+})
+
+$("btn-update-latest").addEventListener("click", () => {
+    if (!releases.length) return
+    selectVersion(releases[0])
+    install()
+})
+
+$("btn-install").addEventListener("click", install)
+
+async function install() {
+    if (!selected) return
     show("progress")
-    setStatus("Checking for updates...")
+    setStatus(`Downloading ${selected.version}…`)
     setProgress(0, 0, 0)
     progressLabel.textContent = ""
 
-    let release
+    const options = {
+        addShortcut: $("toggle-shortcut").checked,
+    }
     try {
-        release = await window.launcher.fetchRelease(token)
+        installed = await window.installer.downloadAndInstall(token, selected, options)
+    } catch (e) {
+        showError(e.message)
+        return
+    }
+    $("done-text").innerHTML = `A·R·I Desktop <b>${installed.version}</b> installed.`
+    show("done")
+}
+
+$("btn-launch").addEventListener("click", async () => {
+    try { await window.installer.openApp(installed?.version || null) }
+    catch (e) { showError(e.message); return }
+    window.close()
+})
+
+$("btn-close").addEventListener("click", () => window.close())
+
+// ── Token screen ─────────────────────────────────────────────────────────────
+
+$("btn-save-token").addEventListener("click", async () => {
+    const t = $("token-input").value.trim()
+    if (!t) return
+    await window.installer.saveToken(t)
+    token = t
+    await loadMain()
+})
+
+$("token-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") $("btn-save-token").click()
+})
+
+$("token-help").addEventListener("click", e => {
+    e.preventDefault()
+    alert("Go to github.com/settings/tokens and create a token with the 'repo' scope.")
+})
+
+$("btn-retry").addEventListener("click", start)
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+
+async function loadMain() {
+    show("progress")
+    setStatus("Checking for versions…")
+    try {
+        releases  = await window.installer.fetchReleases(token)
+        installed = await window.installer.installedInfo()
     } catch (e) {
         if (e.message.includes("TOKEN_INVALID")) {
-            tokenInput.value = ""
-            document.getElementById("token-message").textContent =
-                "Token is invalid or expired. Please enter a new one."
+            $("token-input").value = ""
+            $("token-message").textContent = "Token is invalid or expired. Please enter a new one."
             show("token")
             return
         }
         showError(e.message)
         return
     }
+    renderInstalled()
+    renderVersionList()
+    show("main")
+}
 
-    const installed = await window.launcher.versionInstalled(release.tagName)
-    if (installed) {
-        setStatus(`Launching ${release.tagName}...`)
-        try {
-            await window.launcher.launchAri(null)
-        } catch (e) {
-            showError(e.message)
-        }
-        return
-    }
+async function start() {
+    // Label the OS-specific shortcut toggle.
+    const platform = await window.installer.getPlatform()
+    const toggle   = $("toggle-shortcut").closest(".toggle")
+    if (platform === "win32")      $("toggle-shortcut-label").textContent = "Add to Start Menu"
+    else if (platform === "darwin") $("toggle-shortcut-label").textContent = "Add to Applications"
+    else                            toggle.classList.add("hidden")   // no shortcut on Linux
 
-    setStatus(`Downloading ${release.tagName}...`)
-    let versionDir
-    try {
-        versionDir = await window.launcher.downloadAndInstall(token, release)
-    } catch (e) {
-        showError(e.message)
-        return
-    }
-
-    setStatus(`Launching ${release.tagName}...`)
-    try {
-        await window.launcher.launchAri(versionDir)
-    } catch (e) {
-        showError(e.message)
-    }
+    // A token is only needed while the repo is private (REPO_PRIVATE in main.js).
+    const needsToken = await window.installer.needsToken()
+    token = await window.installer.getToken()
+    if (needsToken && !token) { show("token"); return }
+    await loadMain()
 }
 
 start()

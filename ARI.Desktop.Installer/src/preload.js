@@ -1,13 +1,14 @@
 const { contextBridge, ipcRenderer } = require("electron")
 
-contextBridge.exposeInMainWorld("launcher", {
-    needsToken:         ()           => ipcRenderer.invoke("needs-token"),
-    getToken:           ()           => ipcRenderer.invoke("get-token"),
-    saveToken:          (t)          => ipcRenderer.invoke("save-token", t),
-    fetchRelease:       (t)          => ipcRenderer.invoke("fetch-release", t),
-    versionInstalled:   (tag)        => ipcRenderer.invoke("version-installed", tag),
-    downloadAndInstall: (t, release) => ipcRenderer.invoke("download-and-install", t, release),
-    launchAri:          (dir)        => ipcRenderer.invoke("launch-ari", dir),
-    onProgress:         (cb)         => ipcRenderer.on("download-progress", (_, d) => cb(d)),
-    onStatus:           (cb)         => ipcRenderer.on("status", (_, s) => cb(s)),
+contextBridge.exposeInMainWorld("installer", {
+    getPlatform:        ()               => ipcRenderer.invoke("get-platform"),
+    needsToken:         ()               => ipcRenderer.invoke("needs-token"),
+    getToken:           ()               => ipcRenderer.invoke("get-token"),
+    saveToken:          (t)              => ipcRenderer.invoke("save-token", t),
+    fetchReleases:      (t)              => ipcRenderer.invoke("fetch-releases", t),
+    installedInfo:      ()               => ipcRenderer.invoke("installed-info"),
+    downloadAndInstall: (t, rel, opts)   => ipcRenderer.invoke("download-and-install", t, rel, opts),
+    openApp:            (v)              => ipcRenderer.invoke("open-app", v),
+    onProgress:         (cb)             => ipcRenderer.on("download-progress", (_, d) => cb(d)),
+    onStatus:           (cb)             => ipcRenderer.on("status", (_, s) => cb(s)),
 })

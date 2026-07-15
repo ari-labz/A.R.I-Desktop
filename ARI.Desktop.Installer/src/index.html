@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
-    <title>ARI</title>
+    <title>ARI Desktop Installer</title>
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,18 +17,46 @@
         <!-- Token screen -->
         <div id="screen-token" class="screen hidden">
             <p id="token-message">A GitHub personal access token is required to download ARI.</p>
-            <input id="token-input" type="password" placeholder="Paste token here..." spellcheck="false" />
+            <input id="token-input" type="password" placeholder="Paste token here…" spellcheck="false" />
             <button id="btn-save-token">Continue</button>
             <a id="token-help" href="#">How do I get a token?</a>
         </div>
 
+        <!-- Main screen -->
+        <div id="screen-main" class="screen hidden">
+            <div id="installed-box">
+                <div class="box-label">Installed</div>
+                <div id="installed-line">Checking…</div>
+            </div>
+
+            <div id="action-row">
+                <button id="btn-update-latest">Update to latest</button>
+                <button id="btn-select-version" class="secondary">Select version</button>
+            </div>
+
+            <div id="version-list" class="hidden"></div>
+
+            <div id="selected-line" class="hidden"></div>
+
+            <div id="toggles">
+                <label class="toggle"><input type="checkbox" id="toggle-shortcut" checked /> <span id="toggle-shortcut-label">Add to Applications</span></label>
+            </div>
+
+            <button id="btn-install" class="hidden">Install</button>
+        </div>
+
         <!-- Progress screen -->
         <div id="screen-progress" class="screen hidden">
-            <div id="status-text">Checking for updates...</div>
-            <div id="progress-wrap">
-                <div id="progress-bar"></div>
-            </div>
+            <div id="status-text">Working…</div>
+            <div id="progress-wrap"><div id="progress-bar"></div></div>
             <div id="progress-label"></div>
+        </div>
+
+        <!-- Done screen -->
+        <div id="screen-done" class="screen hidden">
+            <div id="done-text"></div>
+            <button id="btn-launch">Open A·R·I Desktop</button>
+            <button id="btn-close" class="secondary">Close</button>
         </div>
 
         <!-- Error screen -->
