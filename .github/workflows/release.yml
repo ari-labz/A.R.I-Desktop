@@ -75,9 +75,10 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      # electron-builder needs wine to stamp the Windows portable .exe when built on Linux.
-      - name: Install wine (Linux, installer only)
-        if: runner.os == 'Linux' && needs.setup.outputs.target == 'installer'
+      # electron-builder runs rcedit via wine to stamp any Windows .exe (the app itself and the
+      # portable installer), so wine is needed for every Windows build on the Linux runner.
+      - name: Install wine (Linux — needed to stamp Windows .exe)
+        if: runner.os == 'Linux'
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
