@@ -4,3 +4,10 @@ Builds/
 .idea/
 *.log
 .DS_Store
+
+# Secrets — never commit
+.env
+.env.*
+secrets.env
+*.pem
+*.key
