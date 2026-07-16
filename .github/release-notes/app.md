@@ -1,3 +1,3 @@
-Changes since the previous release:
+Changes since v0.7.4:
 
-- Describe the desktop app changes here before pushing the ARI_Desktop_v<version> tag.
+- No functional changes — first desktop app build produced by the new GitHub Actions release pipeline.
