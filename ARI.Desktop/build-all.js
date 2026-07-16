@@ -19,11 +19,15 @@ fs.mkdirSync(tmpDir,     { recursive: true })
 // rebuilds the installer (and vice versa). Unset / "all" = both (local default).
 const target = process.env.BUILD_TARGET || "all"   // app | installer | all
 
+// BUILD_PLATFORM (space/comma list) restricts which OS artifacts are built, so CI can split mac
+// onto a macOS runner and win+linux onto a Linux runner. Unset = all (local default).
+const wantedPlats = (process.env.BUILD_PLATFORM || "mac win linux").split(/[\s,]+/).filter(Boolean)
+
 const platforms = [
-    { flag: "--win   --x64", zip: `ARI_Desktop_v${version}_win.zip`   },
-    { flag: "--linux --x64", zip: `ARI_Desktop_v${version}_linux.zip` },
-    { flag: "--mac",         zip: `ARI_Desktop_v${version}_mac.zip`   },
-]
+    { plat: "win",   flag: "--win   --x64", zip: `ARI_Desktop_v${version}_win.zip`   },
+    { plat: "linux", flag: "--linux --x64", zip: `ARI_Desktop_v${version}_linux.zip` },
+    { plat: "mac",   flag: "--mac",         zip: `ARI_Desktop_v${version}_mac.zip`   },
+].filter(p => wantedPlats.includes(p.plat))
 
 if (target !== "installer")
 for (const { flag, zip } of platforms) {
@@ -52,10 +56,10 @@ if (!fs.existsSync(launcherEb)) {
 }
 
 const launcherPlatforms = [
-    { flag: "--win   --x64", plat: "win"   },
-    { flag: "--linux --x64", plat: "linux" },
-    { flag: "--mac",         plat: "mac"   },   // ships a .dmg
-]
+    { flag: "--win   --x64", plat: "win"   },   // portable .exe
+    { flag: "--linux --x64", plat: "linux" },   // AppImage
+    { flag: "--mac",         plat: "mac"   },   // .dmg
+].filter(p => wantedPlats.includes(p.plat))
 
 if (target !== "app")
 for (const { flag, plat } of launcherPlatforms) {
@@ -64,7 +68,8 @@ for (const { flag, plat } of launcherPlatforms) {
         stdio: "inherit",
         cwd:   launcherDir,
     })
-    const built = fs.readdirSync(tmpDir).find(f => f.endsWith(".dmg") || f.endsWith(".zip"))
+    const built = fs.readdirSync(tmpDir).find(f =>
+        f.endsWith(".dmg") || f.endsWith(".exe") || f.endsWith(".AppImage") || f.endsWith(".zip"))
     if (!built) throw new Error(`No installer artifact for ${plat}`)
     fs.renameSync(path.join(tmpDir, built), path.join(versionDir, `ARI_Desktop_Installer_v${installerVersion}_${plat}${path.extname(built)}`))
     fs.rmSync(tmpDir, { recursive: true, force: true })
