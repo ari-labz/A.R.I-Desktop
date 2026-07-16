@@ -15,12 +15,17 @@ fs.mkdirSync(tmpDir,     { recursive: true })
 
 // ── Electron builds ───────────────────────────────────────────────────────────
 
+// BUILD_TARGET lets CI build just the app or just the installer, so pushing an app tag never
+// rebuilds the installer (and vice versa). Unset / "all" = both (local default).
+const target = process.env.BUILD_TARGET || "all"   // app | installer | all
+
 const platforms = [
     { flag: "--win   --x64", zip: `ARI_Desktop_v${version}_win.zip`   },
     { flag: "--linux --x64", zip: `ARI_Desktop_v${version}_linux.zip` },
     { flag: "--mac",         zip: `ARI_Desktop_v${version}_mac.zip`   },
 ]
 
+if (target !== "installer")
 for (const { flag, zip } of platforms) {
     console.log(`\n── Building ARI ${zip}\n`)
     execSync(`bunx electron-builder ${flag} --config.directories.output="${tmpDir}"`, {
@@ -52,6 +57,7 @@ const launcherPlatforms = [
     { flag: "--mac",         plat: "mac"   },   // ships a .dmg
 ]
 
+if (target !== "app")
 for (const { flag, plat } of launcherPlatforms) {
     console.log(`\n── Building Installer ${plat}\n`)
     execSync(`bunx electron-builder ${flag} --config.directories.output="${tmpDir}"`, {
