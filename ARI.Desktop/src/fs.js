@@ -9,6 +9,10 @@ const IGNORED_DIRS = new Set([
     "vendor", "packages", ".gradle", "Pods",
     // Large asset/model directories that are never source code
     "Models", "Voices", "External",
+    // Dev build output — compiled/hashed artifacts, not source
+    "devbuild",
+    // Static web assets (compiled bundles, minified libs) — not source
+    "wwwroot", "assets",
 ])
 
 // Only files with these extensions are included in the tree sent to ARI.
@@ -93,16 +97,94 @@ function getFileTree(root) {
     return buildTree(path.resolve(root), path.resolve(root))
 }
 
-function listDirectory(root, dirPath) {
+// Build a dirs-only tree up to `maxDepth` levels, annotating each dir with
+// the count of direct source files (non-dirs). Used for the initial project
+// context skeleton sent to the LLM.
+function buildShallowTree(dir, root, maxDepth, currentDepth = 0, lines = []) {
+    let entries
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) }
+    catch { return lines }
+
+    const indent = "  ".repeat(currentDepth)
+    for (const entry of entries) {
+        if (entry.name.startsWith(".") && entry.name !== ".env") continue
+        if (IGNORED_DIRS.has(entry.name)) continue
+        const abs = path.join(dir, entry.name)
+        if (!entry.isDirectory()) continue
+        // Count direct source files (not subdirs) in this directory
+        let fileCount = 0
+        try {
+            const children = fs.readdirSync(abs, { withFileTypes: true })
+            for (const c of children) {
+                if (c.isDirectory()) continue
+                if (c.name.startsWith(".") && c.name !== ".env") continue
+                const ext = path.extname(c.name).toLowerCase()
+                if (SOURCE_EXTS.has(ext) || SOURCE_EXTS.has(c.name.toLowerCase())) fileCount++
+            }
+        } catch { /* ignore */ }
+        const countHint = fileCount > 0 ? `  (${fileCount} file${fileCount === 1 ? "" : "s"})` : ""
+        lines.push(`${indent}${entry.name}/${countHint}`)
+        if (currentDepth < maxDepth - 1) {
+            buildShallowTree(abs, root, maxDepth, currentDepth + 1, lines)
+        }
+    }
+    return lines
+}
+
+function getShallowTree(root, depth = 2) {
+    return buildShallowTree(path.resolve(root), path.resolve(root), depth)
+}
+
+function listDirectory(root, dirPath, depth) {
     const abs = path.resolve(root, dirPath ?? ".")
     if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
     let entries
     try { entries = fs.readdirSync(abs, { withFileTypes: true }) }
     catch (e) { throw new Error(`Directory not found: ${dirPath}`) }
-    return entries
-        .filter(e => !e.name.startsWith(".") || e.name === ".env")
-        .map(e => e.name + (e.isDirectory() ? "/" : ""))
-        .sort()
+
+    const d = typeof depth === "number" && depth > 0 ? depth : 1
+    if (d <= 1) {
+        // Flat listing — dirs get file count hint, files listed as-is
+        return entries
+            .filter(e => !e.name.startsWith(".") || e.name === ".env")
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(e => {
+                if (!e.isDirectory()) return e.name
+                const childAbs = path.join(abs, e.name)
+                let fc = 0
+                try {
+                    const ch = fs.readdirSync(childAbs, { withFileTypes: true })
+                    for (const c of ch) {
+                        if (c.isDirectory()) continue
+                        const ext = path.extname(c.name).toLowerCase()
+                        if (SOURCE_EXTS.has(ext) || SOURCE_EXTS.has(c.name.toLowerCase())) fc++
+                    }
+                } catch { /* ignore */ }
+                return fc > 0 ? `${e.name}/  (${fc} file${fc === 1 ? "" : "s"})` : `${e.name}/`
+            })
+    }
+    // Recursive listing up to depth d
+    const rootAbs = path.resolve(root)
+    const results = []
+    function recurse(dir, curDepth, indent) {
+        let ents
+        try { ents = fs.readdirSync(dir, { withFileTypes: true }) }
+        catch { return }
+        const sorted = ents
+            .filter(e => !e.name.startsWith(".") || e.name === ".env")
+            .sort((a, b) => a.name.localeCompare(b.name))
+        for (const e of sorted) {
+            if (IGNORED_DIRS.has(e.name)) continue
+            if (e.isDirectory()) {
+                results.push(`${indent}${e.name}/`)
+                if (curDepth < d) recurse(path.join(dir, e.name), curDepth + 1, indent + "  ")
+            } else {
+                results.push(`${indent}${e.name}`)
+            }
+        }
+    }
+    recurse(abs, 1, "")
+    return results
 }
 
 // Regex content search (mirrors the C# SearchFiles tool). The model is told to search with
@@ -330,4 +412,4 @@ function moveFile(root, source, destination) {
     return { ok: true }
 }
 
-module.exports = { readFile, writeFile, getFileTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile }
+module.exports = { readFile, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile }

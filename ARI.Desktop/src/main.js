@@ -19,7 +19,7 @@ if (needsInstall) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 const { app, BrowserWindow, ipcMain, dialog } = require("electron")
 const Store = require("electron-store")
-const { readFile, writeFile, getFileTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
+const { readFile, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
 
 // Commands the code agent may run without asking. The user can extend this at runtime via the
 // "Whitelist" option on the command-confirmation prompt. Entries match a command if it equals the
@@ -307,9 +307,14 @@ ipcMain.handle("fs:tree", (_e, root) => {
     return getFileTree(root)
 })
 
-ipcMain.handle("fs:list-dir", (_e, root, dirPath) => {
-    log.info(`fs:list-dir  root=${root}  path=${dirPath ?? "."}`)
-    return listDirectory(root, dirPath)
+ipcMain.handle("fs:shallow-tree", (_e, root, depth) => {
+    log.info(`fs:shallow-tree  root=${root}  depth=${depth ?? 2}`)
+    return getShallowTree(root, depth ?? 2)
+})
+
+ipcMain.handle("fs:list-dir", (_e, root, dirPath, depth) => {
+    log.info(`fs:list-dir  root=${root}  path=${dirPath ?? "."}  depth=${depth ?? 1}`)
+    return listDirectory(root, dirPath, depth)
 })
 
 ipcMain.handle("fs:search", (_e, root, pattern, searchPath, glob, ignoreCase) => {
