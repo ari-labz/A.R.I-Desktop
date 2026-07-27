@@ -1,6 +1,6 @@
 {
   "name": "ari-desktop",
-  "version": "0.7.5",
+  "version": "0.3.0",
   "description": "ARI Desktop Client",
   "author": "Xywren",
   "private": true,
@@ -23,7 +23,7 @@
     "productName": "A.R.I Desktop",
     "icon":        "assets/icon.png",
     "directories": { "output": "dist" },
-    "files": ["src/**/*", "assets/**/*"],
+    "files": ["src/**/*", "assets/**/*", "manifest.json"],
     "afterPack": "./afterPack.js",
     "mac":   { "target": "zip", "icon": "assets/icon.icns", "identity": null, "artifactName": "ARI-${version}-mac.${ext}" },
     "win":   { "target": "zip", "artifactName": "ARI-${version}-win.${ext}" },

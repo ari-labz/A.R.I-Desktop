@@ -33,6 +33,7 @@ const baseDir     = getBaseDir()
 const desktopDir  = path.join(baseDir, "desktop")
 const tokenFile   = path.join(baseDir, "github_token.txt")
 const currentFile = path.join(desktopDir, "current.txt")
+const cacheFile   = path.join(baseDir, "protocol-cache.json")
 // macOS launch point: the desktop app placed in /Applications.
 const APP_IN_APPLICATIONS = "/Applications/A.R.I Desktop.app"
 fs.mkdirSync(desktopDir, { recursive: true })
@@ -82,14 +83,14 @@ ipcMain.handle("save-token", (_, token) => {
     fs.writeFileSync(tokenFile, token.trim(), "utf8")
 })
 
-// ── IPC: releases ────────────────────────────────────────────────────────────────
+// ── IPC: releases + protocol ────────────────────────────────────────────────────
 
 ipcMain.handle("fetch-releases", async (_, token) => {
     const releases = await ghJson(token, `/repos/${OWNER}/${REPO}/releases?per_page=100`)
     if (!Array.isArray(releases) || releases.length === 0)
         throw new Error("No releases found on GitHub.")
 
-    return releases
+    const list = releases
         .filter(r => !r.draft && r.tag_name.startsWith(APP_PREFIX))
         .sort((a, b) => compareVersions(verFromTag(b.tag_name), verFromTag(a.tag_name)))
         .map(r => ({
@@ -98,14 +99,57 @@ ipcMain.handle("fetch-releases", async (_, token) => {
             prerelease: r.prerelease,
             assets:     r.assets.map(a => ({ id: a.id, name: a.name })),
         }))
+
+    // Resolve each version's protocol (cached — a tag's manifest never changes).
+    const cache = readCache()
+    await Promise.all(list.map(async r => {
+        if (cache[r.tagName] === undefined)
+            cache[r.tagName] = await fetchProtocol(token, r.tagName)
+        r.protocol = cache[r.tagName]
+    }))
+    writeCache(cache)
+
+    return list
 })
+
+// Reads manifest.json ({ "version": "..", "protocol": N }) committed at the tag.
+async function fetchProtocol(token, tag) {
+    try {
+        const res = await ghJson(token, `/repos/${OWNER}/${REPO}/contents/manifest.json?ref=${encodeURIComponent(tag)}`)
+        if (!res?.content) return null
+        const json = JSON.parse(Buffer.from(res.content, "base64").toString("utf8"))
+        return Number.isInteger(json.protocol) ? json.protocol : null
+    } catch {
+        return null   // older releases may predate the manifest
+    }
+}
 
 // ── IPC: installed state ────────────────────────────────────────────────────────
 
 ipcMain.handle("installed-info", () => {
     const version = installedVersion()
-    return version ? { version } : null
+    if (!version) return null
+    return { version, protocol: bundledProtocol(version) }
 })
+
+// Reads the manifest.json bundled inside an installed version dir.
+function bundledProtocol(version) {
+    try {
+        const p = path.join(desktopDir, version, "manifest.json")
+        if (!fs.existsSync(p)) return null
+        const json = JSON.parse(fs.readFileSync(p, "utf8"))
+        return Number.isInteger(json.protocol) ? json.protocol : null
+    } catch {
+        return null
+    }
+}
+
+function readCache() {
+    try { return JSON.parse(fs.readFileSync(cacheFile, "utf8")) } catch { return {} }
+}
+function writeCache(cache) {
+    try { fs.writeFileSync(cacheFile, JSON.stringify(cache), "utf8") } catch {}
+}
 
 function installedVersion() {
     if (fs.existsSync(currentFile)) {
@@ -148,6 +192,14 @@ ipcMain.handle("download-and-install", async (event, token, release, options) =>
     fs.rmSync(zipPath, { force: true })
     if (process.platform !== "win32") setExecutableBit(versionDir)
 
+    // Record the protocol locally so installed-info never depends on the zip's
+    // contents. Prefer a manifest shipped in the release; fall back to the value
+    // resolved from GitHub when the list was fetched.
+    if (!fs.existsSync(path.join(versionDir, "manifest.json")) && Number.isInteger(release.protocol)) {
+        const manifest = { version: ver, protocol: release.protocol }
+        fs.writeFileSync(path.join(versionDir, "manifest.json"), JSON.stringify(manifest), "utf8")
+    }
+
     fs.writeFileSync(currentFile, ver, "utf8")
     cleanOldVersions(ver)
 
@@ -159,7 +211,7 @@ ipcMain.handle("download-and-install", async (event, token, release, options) =>
         event.sender.send("status", "Starting A·R·I Desktop…")
         try { launch(versionDir) } catch (e) { /* best-effort */ }
     }
-    return { version: ver }
+    return { version: ver, protocol: bundledProtocol(ver) }
 })
 
 ipcMain.handle("open-app", (_, version) => {

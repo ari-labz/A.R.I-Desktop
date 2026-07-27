@@ -41,9 +41,14 @@ window.installer.onStatus(s => setStatus(s))
 
 // ── Main screen rendering ────────────────────────────────────────────────────
 
+function protoTag(protocol) {
+    if (!Number.isInteger(protocol)) return `<span class="proto unknown">·protocol —·</span>`
+    return `<span class="proto">·protocol v${protocol}·</span>`
+}
+
 function renderInstalled() {
     if (installed)
-        $("installed-line").innerHTML = `A·R·I Desktop <b>${installed.version}</b>`
+        $("installed-line").innerHTML = `A·R·I Desktop <b>${installed.version}</b> ${protoTag(installed.protocol)}`
     else
         $("installed-line").innerHTML = `<span class="muted">None installed</span>`
 }
@@ -63,6 +68,7 @@ function renderVersionList() {
 
         row.innerHTML =
             `<span class="ver">${r.version}</span>` +
+            protoTag(r.protocol) +
             `<span class="badges">${badges.join("")}</span>`
         row.addEventListener("click", () => selectVersion(r))
         list.appendChild(row)
@@ -73,7 +79,7 @@ function selectVersion(r) {
     selected = r
     renderVersionList()
     $("selected-line").classList.remove("hidden")
-    $("selected-line").innerHTML = `Selected <b>${r.version}</b>`
+    $("selected-line").innerHTML = `Selected <b>${r.version}</b> ${protoTag(r.protocol)}`
     const btn = $("btn-install")
     btn.classList.remove("hidden")
     btn.textContent = `Install ${r.version}`
@@ -116,7 +122,7 @@ async function install() {
     // main.js already launched the app when startApp is checked — nothing left for the
     // user to do, so close the installer instead of showing the done screen.
     if (startApp) { window.close(); return }
-    $("done-text").innerHTML = `A·R·I Desktop <b>${installed.version}</b> installed.`
+    $("done-text").innerHTML = `A·R·I Desktop <b>${installed.version}</b> ${protoTag(installed.protocol)} installed.`
     show("done")
 }
 
