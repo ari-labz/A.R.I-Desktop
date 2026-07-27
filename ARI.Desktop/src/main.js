@@ -85,24 +85,25 @@ function createSplash() {
 const WAIT_TIMEOUT_MS = 60_000
 
 async function waitForAri(endpoint) {
-    log.info(`Waiting for ARI server at ${endpoint}/threads (timeout ${WAIT_TIMEOUT_MS / 1000}s) …`)
+    log.info(`Waiting for ARI server at ${endpoint} (timeout ${WAIT_TIMEOUT_MS / 1000}s) …`)
     const deadline = Date.now() + WAIT_TIMEOUT_MS
     let attempt = 0
     while (true) {
         attempt++
         try {
-            const res = await fetch(`${endpoint}/threads`)
+            const ctrl = new AbortController()
+            const timer = setTimeout(() => ctrl.abort(), 4000)
+            const res = await fetch(`${endpoint}/api/info/ready`, { signal: ctrl.signal })
+            clearTimeout(timer)
             log.info(`Health check attempt ${attempt}: HTTP ${res.status}`)
             if (res.status < 500) {
-                // Any non-5xx means the ARI server (or its auth layer) responded — it's up
                 log.info("ARI server is ready")
                 return
             }
-            // 5xx — could be Cloudflare 530 (origin offline), 502, 503, etc. — keep waiting
             log.info(`HTTP ${res.status} — origin not yet reachable, retrying…`)
         } catch (err) {
             if (attempt === 1 || attempt % 5 === 0)
-                log.info(`Health check attempt ${attempt}: connection refused — ARI not up yet`)
+                log.info(`Health check attempt ${attempt}: ${err.name === "AbortError" ? "timed out" : "connection refused"} — ARI not up yet`)
         }
 
         if (Date.now() >= deadline) {
