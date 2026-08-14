@@ -2,6 +2,15 @@ const fs   = require("fs")
 const path = require("path")
 const { exec } = require("child_process")
 
+const BINARY_EXTS = new Set([
+    ".zip", ".gz", ".tar", ".rar", ".7z", ".bz2", ".xz",
+    ".exe", ".dll", ".so", ".dylib", ".lib", ".a", ".o",
+    ".bin", ".dat", ".db", ".sqlite", ".pak",
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".svg",
+    ".mp3", ".mp4", ".wav", ".ogg", ".flac", ".mov", ".avi",
+    ".pdf", ".wasm",
+])
+
 const IGNORED_DIRS = new Set([
     "node_modules", ".git", "bin", "obj", "dist", "build",
     ".DS_Store", "__pycache__", ".next", ".nuxt",
@@ -55,9 +64,16 @@ function writeFileSyncRetry(abs, data) {
     }
 }
 
+const READ_MAX_BYTES = 24000
+
 function readFile(root, filePath) {
     const abs = path.resolve(root, filePath)
     if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
+    try {
+        const size = fs.statSync(abs).size
+        if (size > READ_MAX_BYTES)
+            return `This file is too large to read (${size.toLocaleString()} bytes). Use search_files to locate the specific lines you need, then read a narrow range with start_line/end_line.`
+    } catch { /* file not found — let readFileSyncRetry surface the error */ }
     return readFileSyncRetry(abs)
 }
 
@@ -215,6 +231,7 @@ function searchFiles(root, pattern, searchPath, glob, ignoreCase) {
             const abs = path.join(dir, entry.name)
             if (entry.isDirectory()) { search(abs); continue }
             if (globExt && !entry.name.endsWith(globExt)) continue
+            if (BINARY_EXTS.has(path.extname(entry.name).toLowerCase())) continue
             let lines
             try { lines = fs.readFileSync(abs, "utf8").split("\n") } catch { continue }
             for (let i = 0; i < lines.length; i++) {
