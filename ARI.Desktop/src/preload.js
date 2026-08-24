@@ -26,4 +26,6 @@ contextBridge.exposeInMainWorld("electronBridge", {
     maximizeWindow: ()       => ipcRenderer.invoke("window:maximize"),
     markReady:    ()                    => ipcRenderer.invoke("app:ready"),
     getVersion:   ()                    => ipcRenderer.invoke("app:version"),
+    syncStatus:   (args)                => ipcRenderer.invoke("sync:status", args),
+    syncRun:      (args)                => ipcRenderer.invoke("sync:run",    args),
 })

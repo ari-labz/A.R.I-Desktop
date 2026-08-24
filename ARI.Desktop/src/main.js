@@ -20,6 +20,7 @@ if (needsInstall) {
 const { app, BrowserWindow, ipcMain, dialog } = require("electron")
 const Store = require("electron-store")
 const { readFile, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
+const { syncProject, getStatus: getSyncStatus } = require("./sync")
 
 // Commands the code agent may run without asking. The user can extend this at runtime via the
 // "Whitelist" option on the command-confirmation prompt. Entries match a command if it equals the
@@ -95,12 +96,8 @@ async function waitForAri(endpoint) {
             const timer = setTimeout(() => ctrl.abort(), 4000)
             const res = await fetch(`${endpoint}/api/info/ready`, { signal: ctrl.signal })
             clearTimeout(timer)
-            log.info(`Health check attempt ${attempt}: HTTP ${res.status}`)
-            if (res.status < 500) {
-                log.info("ARI server is ready")
-                return
-            }
-            log.info(`HTTP ${res.status} — origin not yet reachable, retrying…`)
+            log.info(`Health check attempt ${attempt}: HTTP ${res.status} — server reachable, loading`)
+            return  // Any HTTP response means the origin is up; App.tsx handles 503 boot-wait itself.
         } catch (err) {
             if (attempt === 1 || attempt % 5 === 0)
                 log.info(`Health check attempt ${attempt}: ${err.name === "AbortError" ? "timed out" : "connection refused"} — ARI not up yet`)
@@ -411,6 +408,22 @@ ipcMain.handle("app:ready", () => {
 })
 
 ipcMain.handle("app:version", () => app.getVersion())
+
+// ── IPC: project sync ─────────────────────────────────────────────────────────
+// localPath — the project's local folder (from project:get-path).
+// token     — the ARI auth token (renderer passes it down from its auth state).
+
+ipcMain.handle("sync:status", async (_e, { projectId, localPath, token }) => {
+    log.info(`sync:status  id=${projectId}  local=${localPath}`)
+    if (!localPath) return { state: "no-local-path" }
+    return getSyncStatus({ localPath, projectId, endpoint: currentEndpoint, token })
+})
+
+ipcMain.handle("sync:run", async (_e, { projectId, localPath, token }) => {
+    log.info(`sync:run  id=${projectId}  local=${localPath}`)
+    if (!localPath) return { state: "no-local-path" }
+    return syncProject({ localPath, projectId, endpoint: currentEndpoint, token })
+})
 
 ipcMain.handle("window:move-by", (_e, dx, dy) => {
     const [x, y] = win.getPosition()
