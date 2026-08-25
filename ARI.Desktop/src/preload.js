@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron")
 contextBridge.exposeInMainWorld("electronBridge", {
     platform:     process.platform,
     readFile:     (root, path)          => ipcRenderer.invoke("fs:read",           root, path),
+    readBytes:    (root, path)          => ipcRenderer.invoke("fs:read-bytes",     root, path),
     writeFile:    (root, path, content) => ipcRenderer.invoke("fs:write",          root, path, content),
     pickFolder:   ()                    => ipcRenderer.invoke("fs:pick-folder"),
     getFileTree:      (root)                => ipcRenderer.invoke("fs:tree",           root),
