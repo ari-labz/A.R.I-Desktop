@@ -19,7 +19,7 @@ if (needsInstall) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 const { app, BrowserWindow, ipcMain, dialog } = require("electron")
 const Store = require("electron-store")
-const { readFile, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
+const { readFile, readBytes, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
 const { syncProject, getStatus: getSyncStatus } = require("./sync")
 
 // Commands the code agent may run without asking. The user can extend this at runtime via the
@@ -282,6 +282,11 @@ app.on("window-all-closed", () => {
 ipcMain.handle("fs:read", (_e, root, filePath) => {
     log.info(`fs:read  root=${root}  path=${filePath}`)
     return readFile(root, filePath)
+})
+
+ipcMain.handle("fs:read-bytes", (_e, root, filePath) => {
+    log.info(`fs:read-bytes  root=${root}  path=${filePath}`)
+    return readBytes(root, filePath)
 })
 
 ipcMain.handle("fs:write", (_e, root, filePath, content) => {

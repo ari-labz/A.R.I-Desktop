@@ -84,6 +84,18 @@ function writeFile(root, filePath, content) {
     writeFileSyncRetry(abs, content)
 }
 
+// Binary read (protocol v3): return the file's raw bytes base64-encoded so images, notebooks, and
+// other non-text files reach the server's Read decoders over the text channel. No size cap here —
+// the server's Read.PostRun guards oversized results.
+function readBytes(root, filePath) {
+    const abs = path.resolve(root, filePath)
+    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
+    for (let attempt = 0; ; attempt++) {
+        try { return fs.readFileSync(abs).toString("base64") }
+        catch (e) { if (attempt < 3 && TRANSIENT.has(e.code)) { sleepSync(40 * (attempt + 1)); continue } throw e }
+    }
+}
+
 function buildTree(dir, root, results = []) {
     let entries
     try { entries = fs.readdirSync(dir, { withFileTypes: true }) }
@@ -429,4 +441,4 @@ function moveFile(root, source, destination) {
     return { ok: true }
 }
 
-module.exports = { readFile, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile }
+module.exports = { readFile, readBytes, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile }
