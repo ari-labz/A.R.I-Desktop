@@ -90,7 +90,6 @@ async function commitLocalChanges(localPath) {
             await runGit(localPath, ["rm", "--cached", "--", ...submodulePaths]).catch(() => {})
 
         // Untrack any files that are now ignored but were previously committed.
-        // git add --all won't remove them — they need explicit git rm --cached.
         const trackedIgnored = await runGit(localPath, ["ls-files", "--cached", "--ignored", "--exclude-standard"]).catch(() => "")
         if (trackedIgnored.trim()) {
             const paths = trackedIgnored.trim().split("\n").filter(Boolean)
@@ -100,6 +99,19 @@ async function commitLocalChanges(localPath) {
         // Stage everything — excludes honoured via .ariproject/info/exclude.
         await runGit(localPath, ["add", "--all"])
 
+        // Restore inner .git dirs now (before commit) so we can force-add them.
+        // They must be renamed back first — git add -f won't work on the hidden names.
+        for (let i = 0; i < hiddenGitDirs.length; i++) {
+            try { fs.renameSync(hiddenGitDirs[i], innerGitDirs[i]) } catch { /* already restored */ }
+        }
+
+        // Force-add the .git directories so ARI can see repo metadata and run git commands.
+        // -f bypasses info/exclude; we explicitly exclude only .git-ari-hidden in .ariignore.
+        for (const gitDir of innerGitDirs) {
+            const rel = path.relative(localPath, gitDir)
+            await runGit(localPath, ["add", "-f", rel]).catch(() => {})
+        }
+
         // Check if there is anything staged
         const status = await runGit(localPath, ["status", "--porcelain"])
         if (!status) return null  // nothing to commit
@@ -108,7 +120,7 @@ async function commitLocalChanges(localPath) {
         await runGit(localPath, ["commit", "-m", `Sync ${stamp}`])
         return await getHead(localPath)
     } finally {
-        // Restore the inner .git dirs that were temporarily hidden.
+        // Ensure .git dirs are always restored even if something above threw.
         for (let i = 0; i < hiddenGitDirs.length; i++) {
             try { fs.renameSync(hiddenGitDirs[i], innerGitDirs[i]) } catch { /* already restored */ }
         }
