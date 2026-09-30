@@ -66,9 +66,28 @@ function writeFileSyncRetry(abs, data) {
 
 const READ_MAX_BYTES = 24000
 
+// Reads may reach any file on this machine: a relative path resolves against the project, an absolute one
+// is taken as given. Writes, edits, deletes and moves stay inside the project (writablePath).
+
+// Whole-folder check, so a project at /code/app doesn't let /code/app-other through.
+function isInside(root, abs) {
+    const absRoot = path.resolve(root)
+    return abs === absRoot || abs.startsWith(absRoot + path.sep)
+}
+
+function writablePath(root, filePath) {
+    const abs = path.resolve(root, filePath)
+    if (!isInside(root, abs)) throw new Error("Path traversal denied — changes are limited to the project folder")
+    return abs
+}
+
+// How a found path is shown: relative inside the project, absolute outside it.
+function displayPath(root, abs) {
+    return isInside(root, abs) ? path.relative(path.resolve(root), abs) : abs
+}
+
 function readFile(root, filePath) {
     const abs = path.resolve(root, filePath)
-    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
     try {
         const size = fs.statSync(abs).size
         if (size > READ_MAX_BYTES)
@@ -78,8 +97,7 @@ function readFile(root, filePath) {
 }
 
 function writeFile(root, filePath, content) {
-    const abs = path.resolve(root, filePath)
-    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
+    const abs = writablePath(root, filePath)
     fs.mkdirSync(path.dirname(abs), { recursive: true })
     writeFileSyncRetry(abs, content)
 }
@@ -89,7 +107,6 @@ function writeFile(root, filePath, content) {
 // the server's Read.PostRun guards oversized results.
 function readBytes(root, filePath) {
     const abs = path.resolve(root, filePath)
-    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
     for (let attempt = 0; ; attempt++) {
         try { return fs.readFileSync(abs).toString("base64") }
         catch (e) { if (attempt < 3 && TRANSIENT.has(e.code)) { sleepSync(40 * (attempt + 1)); continue } throw e }
@@ -165,7 +182,6 @@ function getShallowTree(root, depth = 2) {
 
 function listDirectory(root, dirPath, depth) {
     const abs = path.resolve(root, dirPath ?? ".")
-    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
     let entries
     try { entries = fs.readdirSync(abs, { withFileTypes: true }) }
     catch (e) { throw new Error(`Directory not found: ${dirPath}`) }
@@ -220,9 +236,7 @@ function listDirectory(root, dirPath, depth) {
 // every alternation/anchor/escape the model writes into a non-match, which is what was forcing it
 // to guess instead of locating the exact code. Case-sensitive by default; ignore_case opts in.
 function searchFiles(root, pattern, searchPath, glob, ignoreCase) {
-    const absRoot   = path.resolve(root)
     const absSearch = path.resolve(root, searchPath ?? ".")
-    if (!absSearch.startsWith(absRoot)) throw new Error("Path traversal denied")
 
     let regex
     try { regex = new RegExp(pattern, ignoreCase ? "i" : "") }
@@ -248,7 +262,7 @@ function searchFiles(root, pattern, searchPath, glob, ignoreCase) {
             try { lines = fs.readFileSync(abs, "utf8").split("\n") } catch { continue }
             for (let i = 0; i < lines.length; i++) {
                 if (regex.test(lines[i])) {
-                    results.push(`${path.relative(absRoot, abs)}:${i + 1}: ${lines[i].trim()}`)
+                    results.push(`${displayPath(root, abs)}:${i + 1}: ${lines[i].trim()}`)
                     if (results.length >= 200) { truncated = true; break }
                 }
             }
@@ -291,8 +305,7 @@ function stripLineNumberPrefix(s) {
 // are resolved against the ORIGINAL file, checked for overlap, then applied highest-offset-first so
 // earlier edits never shift the line numbers / offsets of later ones. One read, one write.
 function editFile(root, filePath, newString, options = {}) {
-    const abs = path.resolve(root, filePath)
-    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
+    const abs = writablePath(root, filePath)
     const content = readFileSyncRetry(abs)
 
     const rawEdits = Array.isArray(options.edits) && options.edits.length > 0
@@ -408,13 +421,15 @@ function globToRegex(glob) {
 function findFiles(root, pattern, searchPath) {
     const absRoot = path.resolve(root)
     const base    = searchPath ? path.resolve(root, searchPath) : absRoot
-    if (!base.startsWith(absRoot)) throw new Error("Path traversal denied")
+    // Inside the project, match and report paths relative to it; outside, relative to the searched folder
+    // for matching, reported absolute.
+    const inside  = isInside(root, base)
     const rx = globToRegex(pattern)
     const results = []
-    for (const rel of buildTree(base, absRoot)) {
+    for (const rel of buildTree(base, inside ? absRoot : base)) {
         const name = rel.split("/").pop()
         if (rx.test(rel) || rx.test(name)) {
-            results.push(rel)
+            results.push(inside ? rel : path.join(base, rel))
             if (results.length >= 200) break
         }
     }
@@ -422,18 +437,15 @@ function findFiles(root, pattern, searchPath) {
 }
 
 function deleteFile(root, filePath) {
-    const abs = path.resolve(root, filePath)
-    if (!abs.startsWith(path.resolve(root))) throw new Error("Path traversal denied")
+    const abs = writablePath(root, filePath)
     if (!fs.existsSync(abs)) return { ok: false, error: `File not found: ${filePath}` }
     fs.rmSync(abs, { force: false })
     return { ok: true }
 }
 
 function moveFile(root, source, destination) {
-    const absRoot = path.resolve(root)
-    const absSrc  = path.resolve(root, source)
-    const absDst  = path.resolve(root, destination)
-    if (!absSrc.startsWith(absRoot) || !absDst.startsWith(absRoot)) throw new Error("Path traversal denied")
+    const absSrc  = writablePath(root, source)
+    const absDst  = writablePath(root, destination)
     if (!fs.existsSync(absSrc)) return { ok: false, error: `Source not found: ${source}` }
     if (fs.existsSync(absDst))  return { ok: false, error: `Destination already exists: ${destination}` }
     fs.mkdirSync(path.dirname(absDst), { recursive: true })
