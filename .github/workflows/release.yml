@@ -1,18 +1,15 @@
 name: Release
 
-# Push a tag to build and publish ONE artifact:
-#   ARI_Desktop_v<ver>            -> builds the desktop app, published as a pre-release
-#   ARI_Desktop_Installer_v<ver>  -> builds the installer,   published as Latest
-# Pushing an app tag never rebuilds the installer, and vice versa.
+# Push a tag ARI_Desktop_v<ver> to build the desktop app and publish it as a pre-release.
+# (The installer lives in its own repo: https://github.com/ari-labz/Installer)
 #
-# Before tagging, edit the matching notes file under .github/release-notes/ — its contents become
+# Before tagging, edit .github/release-notes/app.md — its contents become
 # the release changelog verbatim (no # headings; the release title is the heading).
 
 on:
   push:
     tags:
       - "ARI_Desktop_v*"
-      - "ARI_Desktop_Installer_v*"
 
 permissions:
   contents: write
@@ -33,27 +30,15 @@ jobs:
       - id: meta
         run: |
           TAG="${GITHUB_REF_NAME}"
-          if [[ "$TAG" == ARI_Desktop_Installer_v* ]]; then
-            V="${TAG#ARI_Desktop_Installer_v}"
-            {
-              echo "target=installer"; echo "version=$V"
-              echo "title=A·R·I Desktop Installer v$V"
-              echo "prerelease=false"; echo "latest=true"
-              echo "notes=.github/release-notes/installer.md"
-              echo "pattern=ARI_Desktop_Installer_v*"
-              echo "vfile=ARI.Desktop.Installer/package.json"
-            } >> "$GITHUB_OUTPUT"
-          else
-            V="${TAG#ARI_Desktop_v}"
-            {
-              echo "target=app"; echo "version=$V"
-              echo "title=A·R·I Desktop v$V"
-              echo "prerelease=true"; echo "latest=false"
-              echo "notes=.github/release-notes/app.md"
-              echo "pattern=ARI_Desktop_v*"
-              echo "vfile=ARI.Desktop/package.json"
-            } >> "$GITHUB_OUTPUT"
-          fi
+          V="${TAG#ARI_Desktop_v}"
+          {
+            echo "target=app"; echo "version=$V"
+            echo "title=A·R·I Desktop v$V"
+            echo "prerelease=true"; echo "latest=false"
+            echo "notes=.github/release-notes/app.md"
+            echo "pattern=ARI_Desktop_v*"
+            echo "vfile=ARI.Desktop/package.json"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: setup
@@ -75,8 +60,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      # electron-builder runs rcedit via wine to stamp any Windows .exe (the app itself and the
-      # portable installer), so wine is needed for every Windows build on the Linux runner.
+      # electron-builder runs rcedit via wine to stamp any Windows .exe (the app itself), so wine is needed for every Windows build on the Linux runner.
       - name: Install wine (Linux — needed to stamp Windows .exe)
         if: runner.os == 'Linux'
         run: |
@@ -86,15 +70,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [[ "${{ needs.setup.outputs.target }}" == "app" ]]; then
-            (cd ARI.Desktop && bun install)
-          else
-            (cd ARI.Desktop.Installer && bun install)
-          fi
+          (cd ARI.Desktop && bun install)
 
       - name: Build
         env:
-          BUILD_TARGET: ${{ needs.setup.outputs.target }}
           BUILD_PLATFORM: ${{ matrix.plats }}
         run: cd ARI.Desktop && bun build-all.js
 

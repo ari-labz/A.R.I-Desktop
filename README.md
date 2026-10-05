@@ -2,10 +2,7 @@
 
 The desktop client for [A·R·I](https://github.com/ari-labz/A.R.I). It connects to an A·R·I server — running on the same machine or elsewhere on your network — and gives you the chat and voice-mode interface as a native app instead of a browser tab. The interface (including the voice-mode Orb) is served by the server itself, so you get the same experience in the browser or in this app.
 
-This repo holds two projects:
-
-- **`ARI.Desktop`** — the Electron desktop app.
-- **`ARI.Desktop.Installer`** — a small companion app that installs, updates, and downgrades the desktop app. It reads this repo's GitHub Releases so you can pick which version to run.
+This repo holds the Electron desktop app (`ARI.Desktop`). It is installed and updated with the [A·R·I Installer](https://github.com/ari-labz/Installer), which reads this repo's GitHub Releases so you can pick which version to run.
 
 ## Requirements
 
@@ -14,7 +11,7 @@ This repo holds two projects:
 
 ## Installing
 
-Download the latest installer for your platform from the [Releases page](https://github.com/ari-labz/A.R.I-Desktop/releases) and run it.
+Download the latest installer for your platform from the [Installer releases page](https://github.com/ari-labz/Installer/releases) and run it, then choose **Desktop**.
 
 ### Getting past the "unverified app" warning
 
@@ -22,7 +19,7 @@ The installers are **not** signed with a paid Apple/Windows certificate, so your
 
 - **macOS** — if you see *"A·R·I Desktop … can't be opened because Apple cannot check it for malicious software"* (or *"is damaged"*), **right-click (Control-click) the app → Open → Open**. You only need to do this once. (Do not double-click — that offers no bypass.)
 - **Windows** — if SmartScreen shows *"Windows protected your PC"*, click **More info → Run anyway**.
-- **Linux** — the installer is an AppImage; mark it executable (`chmod +x ARI_Desktop_Installer_*.AppImage`, or right-click → Properties → allow executing) and run it.
+- **Linux** — the installer is an AppImage; mark it executable (`chmod +x ARIInstaller-linux.AppImage`, or right-click → Properties → allow executing) and run it.
 
 ## Development
 

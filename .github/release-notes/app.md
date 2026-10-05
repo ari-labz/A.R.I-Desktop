@@ -1,4 +1,5 @@
-Changes since v0.3.0:
+Changes since v0.4.0:
 
-- search_files no longer reads binary or archive files (zip, dll, exe, images, etc.) — previously a regex search could pull thousands of characters of garbage from build zips into context
-- read_file now rejects files over 24 KB before reading, returning a clear message instead of dumping the whole file into context
+- ARI can now read files anywhere on your machine, while any changes she makes stay inside the project.
+- Desktop has its own icon, with a DESKTOP label and no border, so it is easy to tell apart from the server in the Dock.
+- The installer is now its own app in its own repo, and installs both the server and the desktop app. Get it from github.com/ari-labz/Installer.

@@ -20,17 +20,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ARI.Desktop", "ARI.Desktop"
 		ARI.Desktop\src\picker-preload.js = ARI.Desktop\src\picker-preload.js
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ARI.Desktop.Installer", "ARI.Desktop.Installer", "{C3D4E5F6-A7B8-9012-CDEF-123456789012}"
-	ProjectSection(SolutionItems) = preProject
-		ARI.Desktop.Installer\package.json = ARI.Desktop.Installer\package.json
-		ARI.Desktop.Installer\dev.sh = ARI.Desktop.Installer\dev.sh
-		ARI.Desktop.Installer\src\main.js = ARI.Desktop.Installer\src\main.js
-		ARI.Desktop.Installer\src\preload.js = ARI.Desktop.Installer\src\preload.js
-		ARI.Desktop.Installer\src\index.html = ARI.Desktop.Installer\src\index.html
-		ARI.Desktop.Installer\src\renderer.js = ARI.Desktop.Installer\src\renderer.js
-		ARI.Desktop.Installer\src\styles.css = ARI.Desktop.Installer\src\styles.css
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
