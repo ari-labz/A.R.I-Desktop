@@ -289,9 +289,9 @@ ipcMain.handle("fs:read-bytes", (_e, root, filePath) => {
     return readBytes(root, filePath)
 })
 
-ipcMain.handle("fs:write", (_e, root, filePath, content) => {
-    log.info(`fs:write  root=${root}  path=${filePath}  bytes=${content?.length ?? 0}`)
-    return writeFile(root, filePath, content)
+ipcMain.handle("fs:write", (_e, root, filePath, content, allowOutside) => {
+    log.info(`fs:write  root=${root}  path=${filePath}  bytes=${content?.length ?? 0}${allowOutside ? "  (outside the project, allowed)" : ""}`)
+    return writeFile(root, filePath, content, allowOutside === true)
 })
 
 ipcMain.handle("fs:pick-folder", async () => {
@@ -341,14 +341,14 @@ ipcMain.handle("fs:find", (_e, root, pattern, searchPath) => {
     return findFiles(root, pattern, searchPath)
 })
 
-ipcMain.handle("fs:delete", (_e, root, filePath) => {
-    log.info(`fs:delete  root=${root}  path=${filePath}`)
-    return deleteFile(root, filePath)
+ipcMain.handle("fs:delete", (_e, root, filePath, allowOutside) => {
+    log.info(`fs:delete  root=${root}  path=${filePath}${allowOutside ? "  (outside the project, allowed)" : ""}`)
+    return deleteFile(root, filePath, allowOutside === true)
 })
 
-ipcMain.handle("fs:move", (_e, root, source, destination) => {
-    log.info(`fs:move  root=${root}  ${source} -> ${destination}`)
-    return moveFile(root, source, destination)
+ipcMain.handle("fs:move", (_e, root, source, destination, allowOutside) => {
+    log.info(`fs:move  root=${root}  ${source} -> ${destination}${allowOutside ? "  (outside the project, allowed)" : ""}`)
+    return moveFile(root, source, destination, allowOutside === true)
 })
 
 // ── IPC: command allowlist (persisted per-machine) ────────────────────────────

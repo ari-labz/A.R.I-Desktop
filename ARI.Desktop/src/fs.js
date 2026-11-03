@@ -67,7 +67,8 @@ function writeFileSyncRetry(abs, data) {
 const READ_MAX_BYTES = 24000
 
 // Reads may reach any file on this machine: a relative path resolves against the project, an absolute one
-// is taken as given. Writes, edits, deletes and moves stay inside the project (writablePath).
+// is taken as given. Writes, edits, deletes and moves stay inside the project (writablePath) unless the owner
+// allowed this one in the app (allowOutside); a few files that hold keys or secrets are never changed.
 
 // Whole-folder check, so a project at /code/app doesn't let /code/app-other through.
 function isInside(root, abs) {
@@ -75,9 +76,19 @@ function isInside(root, abs) {
     return abs === absRoot || abs.startsWith(absRoot + path.sep)
 }
 
-function writablePath(root, filePath) {
+// Refused even with the owner's say-so: SSH keys, the macOS keychains, and ARI's own secrets.
+const NEVER_WRITABLE = [
+    p => p.split(path.sep).includes(".ssh"),
+    p => p.split(path.sep).includes("Keychains"),
+    p => path.basename(p) === "secrets.env",
+]
+
+// The error starts with OUTSIDE_PROJECT so the app can ask the owner and try again with allowOutside.
+function writablePath(root, filePath, allowOutside = false) {
     const abs = path.resolve(root, filePath)
-    if (!isInside(root, abs)) throw new Error("Path traversal denied — changes are limited to the project folder")
+    if (isInside(root, abs)) return abs
+    if (NEVER_WRITABLE.some(test => test(abs))) throw new Error(`ARI can't change ${abs}: it holds keys or secrets.`)
+    if (!allowOutside) throw new Error(`OUTSIDE_PROJECT: ${abs} is outside the project folder, so changing it needs your permission.`)
     return abs
 }
 
@@ -96,8 +107,8 @@ function readFile(root, filePath) {
     return readFileSyncRetry(abs)
 }
 
-function writeFile(root, filePath, content) {
-    const abs = writablePath(root, filePath)
+function writeFile(root, filePath, content, allowOutside = false) {
+    const abs = writablePath(root, filePath, allowOutside)
     fs.mkdirSync(path.dirname(abs), { recursive: true })
     writeFileSyncRetry(abs, content)
 }
@@ -305,7 +316,7 @@ function stripLineNumberPrefix(s) {
 // are resolved against the ORIGINAL file, checked for overlap, then applied highest-offset-first so
 // earlier edits never shift the line numbers / offsets of later ones. One read, one write.
 function editFile(root, filePath, newString, options = {}) {
-    const abs = writablePath(root, filePath)
+    const abs = writablePath(root, filePath, options.allowOutside === true)
     const content = readFileSyncRetry(abs)
 
     const rawEdits = Array.isArray(options.edits) && options.edits.length > 0
@@ -436,16 +447,16 @@ function findFiles(root, pattern, searchPath) {
     return results.sort()
 }
 
-function deleteFile(root, filePath) {
-    const abs = writablePath(root, filePath)
+function deleteFile(root, filePath, allowOutside = false) {
+    const abs = writablePath(root, filePath, allowOutside)
     if (!fs.existsSync(abs)) return { ok: false, error: `File not found: ${filePath}` }
     fs.rmSync(abs, { force: false })
     return { ok: true }
 }
 
-function moveFile(root, source, destination) {
-    const absSrc  = writablePath(root, source)
-    const absDst  = writablePath(root, destination)
+function moveFile(root, source, destination, allowOutside = false) {
+    const absSrc  = writablePath(root, source, allowOutside)
+    const absDst  = writablePath(root, destination, allowOutside)
     if (!fs.existsSync(absSrc)) return { ok: false, error: `Source not found: ${source}` }
     if (fs.existsSync(absDst))  return { ok: false, error: `Destination already exists: ${destination}` }
     fs.mkdirSync(path.dirname(absDst), { recursive: true })
