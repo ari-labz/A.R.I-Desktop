@@ -28,13 +28,17 @@ function hasAriProject(localPath) {
 // Write .ariignore content into .ariproject/info/exclude so git add --all honours
 // it natively. `git add` doesn't support --exclude-from; info/exclude is the
 // correct per-repo mechanism for untracked exclude rules.
+// Some things are never synced whatever .ariignore says: sync's own git folder, and inner .git folders, including while they are
+// renamed out of the way during staging (see commitLocalChanges).
+const ALWAYS_EXCLUDED = [".ariproject/", "**/.git", "**/.git-ari-hidden"]
+
 function syncExcludeFile(localPath) {
     const ariIgnore = path.join(localPath, ".ariignore")
     const infoDir   = path.join(localPath, ".ariproject", "info")
-    const exclude   = path.join(infoDir, "exclude")
-    if (!fs.existsSync(ariIgnore)) return
+    if (!fs.existsSync(path.join(localPath, ".ariproject"))) return
     fs.mkdirSync(infoDir, { recursive: true })
-    fs.copyFileSync(ariIgnore, exclude)
+    const own = fs.existsSync(ariIgnore) ? fs.readFileSync(ariIgnore, "utf8") : ""
+    fs.writeFileSync(path.join(infoDir, "exclude"), `${own}\n${ALWAYS_EXCLUDED.join("\n")}\n`)
 }
 
 async function initAriProject(localPath) {
@@ -99,17 +103,10 @@ async function commitLocalChanges(localPath) {
         // Stage everything — excludes honoured via .ariproject/info/exclude.
         await runGit(localPath, ["add", "--all"])
 
-        // Restore inner .git dirs now (before commit) so we can force-add them.
-        // They must be renamed back first — git add -f won't work on the hidden names.
+        // Inner .git folders are never sent: the server refuses any push that contains one, because a changed git config can make
+        // git run a command. Their files were added above as ordinary files while the .git folders were hidden.
         for (let i = 0; i < hiddenGitDirs.length; i++) {
             try { fs.renameSync(hiddenGitDirs[i], innerGitDirs[i]) } catch { /* already restored */ }
-        }
-
-        // Force-add the .git directories so ARI can see repo metadata and run git commands.
-        // -f bypasses info/exclude; we explicitly exclude only .git-ari-hidden in .ariignore.
-        for (const gitDir of innerGitDirs) {
-            const rel = path.relative(localPath, gitDir)
-            await runGit(localPath, ["add", "-f", rel]).catch(() => {})
         }
 
         // Check if there is anything staged
