@@ -162,9 +162,35 @@ async function pullFromServer({ localPath, projectId, endpoint, auth, clientSha 
     }
 }
 
+// ── Merge (both sides changed) ────────────────────────────────────────────────
+
+// Brings the server's commits in and merges them with ours. Changes to different files, or to different parts of one file, merge by
+// themselves; a real clash is undone completely and reported with the files involved, so nothing is left half-merged.
+async function mergeFromServer({ localPath, projectId, endpoint, auth }) {
+    // The whole history: the server may not know our newest commits, so it can't bundle "everything since" one of them.
+    const pullRes = await fetch(`${endpoint}/api/v1/projects/${projectId}/sync/pull`, { headers: auth })
+    if (!pullRes.ok) throw new Error(`Pull failed: ${pullRes.status}`)
+    const tmpBundle = path.join(os.tmpdir(), `ari-merge-${Date.now()}.bundle`)
+    try {
+        fs.writeFileSync(tmpBundle, Buffer.from(await pullRes.arrayBuffer()))
+        await runGit(localPath, ["fetch", tmpBundle, "HEAD:refs/heads/ari/incoming"])
+        try {
+            await runGit(localPath, ["merge", "--no-edit", "-m", "Merge Ari's changes from the server", "ari/incoming"])
+            return { state: "merged" }
+        } catch {
+            const clashing = await runGit(localPath, ["diff", "--name-only", "--diff-filter=U"]).catch(() => "")
+            await runGit(localPath, ["merge", "--abort"]).catch(() => {})
+            return { state: "conflict", files: clashing.split("\n").map(f => f.trim()).filter(Boolean) }
+        }
+    } finally {
+        await runGit(localPath, ["branch", "-D", "ari/incoming"]).catch(() => {})
+        if (fs.existsSync(tmpBundle)) fs.unlinkSync(tmpBundle)
+    }
+}
+
 // ── High-level sync ───────────────────────────────────────────────────────────
 
-async function syncProject({ localPath, projectId, endpoint, auth }) {
+async function syncProject({ localPath, projectId, endpoint, auth }, merged = false) {
     // First sync: no local .ariproject yet — pull the full server history and use that as the
     // shared root. This gives both sides a common ancestor SHA so rev-list works going forward.
     if (!hasAriProject(localPath)) {
@@ -208,9 +234,23 @@ async function syncProject({ localPath, projectId, endpoint, auth }) {
 
     if (ahead === 0 && behind === 0) return { state: "up-to-date", serverSha }
 
+    // Both sides moved on: merge the server's work into ours, then sync again to push the result.
+    if (ahead > 0 && behind > 0) return mergeThenSync()
+
+    async function mergeThenSync() {
+        if (merged) return { state: "conflict", files: [] }   // still diverged after a merge: stop rather than loop
+        const result = await mergeFromServer({ localPath, projectId, endpoint, auth })
+        if (result.state !== "merged") return result
+        return syncProject({ localPath, projectId, endpoint, auth }, true)
+    }
+
     let tmpBundle = null
     try {
         if (ahead > 0) {
+            // We can only send "everything since the server's latest commit" if we have that commit. If we don't, the server has work
+            // we lack (it didn't know our commit either, so it couldn't say we were behind): merge it in first.
+            const haveServerTip = !serverSha || await runGit(localPath, ["cat-file", "-e", `${serverSha}^{commit}`]).then(() => true, () => false)
+            if (!haveServerTip) return mergeThenSync()
             tmpBundle = await createBundle(localPath, serverSha)
             const bundleData = fs.readFileSync(tmpBundle)
             const pushRes = await fetch(`${endpoint}/api/v1/projects/${projectId}/sync/push`, {
@@ -218,6 +258,8 @@ async function syncProject({ localPath, projectId, endpoint, auth }) {
                 headers: { ...auth, "Content-Type": "application/octet-stream" },
                 body: bundleData,
             })
+            // The server has work this push lacks (it didn't know our commit, so it couldn't tell us we were behind).
+            if (pushRes.status === 409) return mergeThenSync()
             if (!pushRes.ok) {
                 const err = await pushRes.json().catch(() => ({}))
                 throw new Error(err.error ?? `Push failed: ${pushRes.status}`)
@@ -230,8 +272,7 @@ async function syncProject({ localPath, projectId, endpoint, auth }) {
             return pullFromServer({ localPath, projectId, endpoint, auth, clientSha })
         }
 
-        // ahead > 0 && behind > 0 → diverged
-        return { state: "conflict", ahead, behind, serverSha }
+        return { state: "up-to-date", serverSha }
     } finally {
         if (tmpBundle && fs.existsSync(tmpBundle)) fs.unlinkSync(tmpBundle)
     }
