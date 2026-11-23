@@ -100,6 +100,7 @@ function createAutoSync({ store, log, endpoint, auth, notify }) {
         },
         /** Turns automatic sync on or off for one project, and remembers it. */
         set(projectId, localPath, on) {
+            if (on && live.get(projectId)?.localPath === localPath) return   // already watching this folder
             const rest = saved().filter(w => !(w.endpoint === endpoint() && w.projectId === projectId))
             if (on && localPath) {
                 store.set("autoSync", [...rest, { endpoint: endpoint(), projectId, localPath }])
