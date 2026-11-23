@@ -31,6 +31,7 @@ body {
 #logo { width: 46px; height: 46px; border-radius: 11px; }
 #wordmark { font-size: 20px; font-weight: 600; letter-spacing: 0.15em; color: #e2ecf0; }
 #subtitle { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5a7a8a; }
+#app-version { font-size: 10px; color: #5a7a8a; opacity: .8; }
 
 .hidden { display: none !important; }
 

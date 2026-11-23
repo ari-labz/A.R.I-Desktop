@@ -102,6 +102,8 @@ function escapeHtml(str) {
 }
 
 async function init() {
+    // The desktop app's own version lives here; the chat shows the version of the server it is connected to.
+    window.picker.version().then(v => { if (v) $("app-version").textContent = `Desktop app v${v}` }).catch(() => {})
     servers = await window.picker.list()
     if (servers.length === 1) selected = servers[0].id   // preselect the only server
     render()
