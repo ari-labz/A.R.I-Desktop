@@ -148,9 +148,9 @@ async function applyBundle(localPath, bundlePath) {
 
 // ── Pull helper (shared by first-sync and normal behind-path) ────────────────
 
-async function pullFromServer({ localPath, projectId, endpoint, token, clientSha }) {
+async function pullFromServer({ localPath, projectId, endpoint, auth, clientSha }) {
     const pullUrl = `${endpoint}/api/v1/projects/${projectId}/sync/pull${clientSha ? `?clientSha=${clientSha}` : ""}`
-    const pullRes = await fetch(pullUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const pullRes = await fetch(pullUrl, { headers: auth })
     if (!pullRes.ok) throw new Error(`Pull failed: ${pullRes.status}`)
     const arrayBuf = await pullRes.arrayBuffer()
     const tmpBundle = path.join(os.tmpdir(), `ari-pull-${Date.now()}.bundle`)
@@ -167,12 +167,12 @@ async function pullFromServer({ localPath, projectId, endpoint, token, clientSha
 
 // ── High-level sync ───────────────────────────────────────────────────────────
 
-async function syncProject({ localPath, projectId, endpoint, token }) {
+async function syncProject({ localPath, projectId, endpoint, auth }) {
     // First sync: no local .ariproject yet — pull the full server history and use that as the
     // shared root. This gives both sides a common ancestor SHA so rev-list works going forward.
     if (!hasAriProject(localPath)) {
         await runGit(localPath, ["init"])
-        return pullFromServer({ localPath, projectId, endpoint, token, clientSha: null })
+        return pullFromServer({ localPath, projectId, endpoint, auth, clientSha: null })
     }
 
     // Commit any uncommitted local changes before comparing with server.
@@ -183,9 +183,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
 
     // Ask server for status
     const statusUrl = `${endpoint}/api/v1/projects/${projectId}/sync/status${clientSha ? `?clientSha=${clientSha}` : ""}`
-    const statusRes = await fetch(statusUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-    })
+    const statusRes = await fetch(statusUrl, { headers: auth })
     if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.status}`)
     const { serverSha, ahead, behind, hasContent } = await statusRes.json()
 
@@ -197,7 +195,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
             const bundleData = fs.readFileSync(allBundle)
             const pushRes = await fetch(`${endpoint}/api/v1/projects/${projectId}/sync/push`, {
                 method:  "POST",
-                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream" },
+                headers: { ...auth, "Content-Type": "application/octet-stream" },
                 body: bundleData,
             })
             if (!pushRes.ok) {
@@ -220,10 +218,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
             const bundleData = fs.readFileSync(tmpBundle)
             const pushRes = await fetch(`${endpoint}/api/v1/projects/${projectId}/sync/push`, {
                 method:  "POST",
-                headers: {
-                    Authorization:  `Bearer ${token}`,
-                    "Content-Type": "application/octet-stream",
-                },
+                headers: { ...auth, "Content-Type": "application/octet-stream" },
                 body: bundleData,
             })
             if (!pushRes.ok) {
@@ -235,7 +230,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
         }
 
         if (behind > 0) {
-            return pullFromServer({ localPath, projectId, endpoint, token, clientSha })
+            return pullFromServer({ localPath, projectId, endpoint, auth, clientSha })
         }
 
         // ahead > 0 && behind > 0 → diverged
@@ -245,12 +240,12 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
     }
 }
 
-async function getStatus({ localPath, projectId, endpoint, token }) {
+async function getStatus({ localPath, projectId, endpoint, auth }) {
     if (!hasAriProject(localPath)) return { state: "uninitialized" }
 
     const clientSha = await getHead(localPath)
     const url = `${endpoint}/api/v1/projects/${projectId}/sync/status${clientSha ? `?clientSha=${clientSha}` : ""}`
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    const res = await fetch(url, { headers: auth })
     if (!res.ok) return { state: "error", message: `HTTP ${res.status}` }
 
     const { serverSha, ahead, behind, hasContent } = await res.json()

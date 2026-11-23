@@ -17,7 +17,7 @@ if (needsInstall) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-const { app, BrowserWindow, ipcMain, dialog } = require("electron")
+const { app, BrowserWindow, ipcMain, dialog, session } = require("electron")
 const Store = require("electron-store")
 const { readFile, readBytes, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
 const { syncProject, getStatus: getSyncStatus } = require("./sync")
@@ -418,16 +418,27 @@ ipcMain.handle("app:version", () => app.getVersion())
 // localPath — the project's local folder (from project:get-path).
 // token     — the ARI auth token (renderer passes it down from its auth state).
 
+// The sign-in to send with sync requests: the page's token when it passes one, otherwise the window's session cookie (after a
+// restart the page signs in on the cookie alone and has no token to pass).
+async function syncAuth(token) {
+    if (token) return { Authorization: `Bearer ${token}` }
+    try {
+        const [cookie] = await session.defaultSession.cookies.get({ url: currentEndpoint, name: "ari_session" })
+        if (cookie) return { Cookie: `ari_session=${cookie.value}` }
+    } catch (e) { log.warn(`sync: couldn't read the session cookie: ${e.message}`) }
+    return {}
+}
+
 ipcMain.handle("sync:status", async (_e, { projectId, localPath, token }) => {
     log.info(`sync:status  id=${projectId}  local=${localPath}`)
     if (!localPath) return { state: "no-local-path" }
-    return getSyncStatus({ localPath, projectId, endpoint: currentEndpoint, token })
+    return getSyncStatus({ localPath, projectId, endpoint: currentEndpoint, auth: await syncAuth(token) })
 })
 
 ipcMain.handle("sync:run", async (_e, { projectId, localPath, token }) => {
     log.info(`sync:run  id=${projectId}  local=${localPath}`)
     if (!localPath) return { state: "no-local-path" }
-    return syncProject({ localPath, projectId, endpoint: currentEndpoint, token })
+    return syncProject({ localPath, projectId, endpoint: currentEndpoint, auth: await syncAuth(token) })
 })
 
 ipcMain.handle("window:move-by", (_e, dx, dy) => {
