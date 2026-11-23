@@ -100,7 +100,10 @@ function displayPath(root, abs) {
 function readFile(root, filePath) {
     const abs = path.resolve(root, filePath)
     try {
-        const size = fs.statSync(abs).size
+        const stat = fs.statSync(abs)
+        if (stat.isDirectory())
+            return `'${filePath}' is a directory, not a file. Use list_directory to see what is in it.`
+        const size = stat.size
         if (size > READ_MAX_BYTES)
             return `This file is too large to read (${size.toLocaleString()} bytes). Use search_files to locate the specific lines you need, then read a narrow range with start_line/end_line.`
     } catch { /* file not found — let readFileSyncRetry surface the error */ }
