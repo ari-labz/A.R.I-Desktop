@@ -29,4 +29,11 @@ contextBridge.exposeInMainWorld("electronBridge", {
     getVersion:   ()                    => ipcRenderer.invoke("app:version"),
     syncStatus:   (args)                => ipcRenderer.invoke("sync:status", args),
     syncRun:      (args)                => ipcRenderer.invoke("sync:run",    args),
+    syncWatch:    (args)                => ipcRenderer.invoke("sync:watch",  args),
+    // Calls back with { projectId, state, ... } after each automatic sync; returns a function that stops listening.
+    onSyncChanged: (callback) => {
+        const listener = (_e, data) => callback(data)
+        ipcRenderer.on("sync:changed", listener)
+        return () => ipcRenderer.removeListener("sync:changed", listener)
+    },
 })

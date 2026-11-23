@@ -21,6 +21,7 @@ const { app, BrowserWindow, ipcMain, dialog, session } = require("electron")
 const Store = require("electron-store")
 const { readFile, readBytes, writeFile, getFileTree, getShallowTree, listDirectory, searchFiles, editFile, runCommand, findFiles, deleteFile, moveFile } = require("./fs")
 const { syncProject, getStatus: getSyncStatus } = require("./sync")
+const { createAutoSync } = require("./autosync")
 
 // Commands the code agent may run without asking. The user can extend this at runtime via the
 // "Whitelist" option on the command-confirmation prompt. Entries match a command if it equals the
@@ -244,6 +245,7 @@ async function returnToPicker() {
     if (win && !win.isDestroyed()) { win.destroy(); win = null }
     currentEndpoint = await showPicker()
     createWindow(currentEndpoint)
+    autoSync.start()
 }
 
 ipcMain.handle("servers:list", () => loadServers())
@@ -262,6 +264,7 @@ app.whenReady().then(async () => {
     log.info("Electron app ready")
     currentEndpoint = await chooseEndpoint()
     createWindow(currentEndpoint)
+    autoSync.start()
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().filter(w => w !== splash && w !== picker).length === 0) {
             log.info("Re-creating window on activate")
@@ -439,6 +442,20 @@ ipcMain.handle("sync:run", async (_e, { projectId, localPath, token }) => {
     log.info(`sync:run  id=${projectId}  local=${localPath}`)
     if (!localPath) return { state: "no-local-path" }
     return syncProject({ localPath, projectId, endpoint: currentEndpoint, auth: await syncAuth(token) })
+})
+
+// Automatic sync: on save, and a check with the server every minute, for the projects it is switched on for (see autosync.js).
+const autoSync = createAutoSync({
+    store, log,
+    endpoint: () => currentEndpoint,
+    auth:     () => syncAuth(null),
+    notify:   (projectId, result) => { if (win && !win.isDestroyed()) win.webContents.send("sync:changed", { projectId, ...result }) },
+})
+
+ipcMain.handle("sync:watch", (_e, { projectId, localPath, on }) => {
+    log.info(`sync:watch  id=${projectId}  on=${!!on}  local=${localPath}`)
+    autoSync.set(projectId, localPath, !!on)
+    return autoSync.isOn(projectId)
 })
 
 ipcMain.handle("window:move-by", (_e, dx, dy) => {
