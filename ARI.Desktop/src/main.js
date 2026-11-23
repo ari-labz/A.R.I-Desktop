@@ -94,7 +94,7 @@ async function waitForAri(endpoint) {
         try {
             const ctrl = new AbortController()
             const timer = setTimeout(() => ctrl.abort(), 4000)
-            const res = await fetch(`${endpoint}/api/info/ready`, { signal: ctrl.signal })
+            const res = await fetch(`${endpoint}/api/v1/info/ready`, { signal: ctrl.signal })
             clearTimeout(timer)
             log.info(`Health check attempt ${attempt}: HTTP ${res.status} — server reachable, loading`)
             return  // Any HTTP response means the origin is up; App.tsx handles 503 boot-wait itself.

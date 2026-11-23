@@ -149,7 +149,7 @@ async function applyBundle(localPath, bundlePath) {
 // ── Pull helper (shared by first-sync and normal behind-path) ────────────────
 
 async function pullFromServer({ localPath, projectId, endpoint, token, clientSha }) {
-    const pullUrl = `${endpoint}/projects/${projectId}/sync/pull${clientSha ? `?clientSha=${clientSha}` : ""}`
+    const pullUrl = `${endpoint}/api/v1/projects/${projectId}/sync/pull${clientSha ? `?clientSha=${clientSha}` : ""}`
     const pullRes = await fetch(pullUrl, { headers: { Authorization: `Bearer ${token}` } })
     if (!pullRes.ok) throw new Error(`Pull failed: ${pullRes.status}`)
     const arrayBuf = await pullRes.arrayBuffer()
@@ -182,7 +182,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
     const clientSha = await getHead(localPath)
 
     // Ask server for status
-    const statusUrl = `${endpoint}/projects/${projectId}/sync/status${clientSha ? `?clientSha=${clientSha}` : ""}`
+    const statusUrl = `${endpoint}/api/v1/projects/${projectId}/sync/status${clientSha ? `?clientSha=${clientSha}` : ""}`
     const statusRes = await fetch(statusUrl, {
         headers: { Authorization: `Bearer ${token}` },
     })
@@ -195,7 +195,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
         const allBundle = await createBundle(localPath, null)
         try {
             const bundleData = fs.readFileSync(allBundle)
-            const pushRes = await fetch(`${endpoint}/projects/${projectId}/sync/push`, {
+            const pushRes = await fetch(`${endpoint}/api/v1/projects/${projectId}/sync/push`, {
                 method:  "POST",
                 headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream" },
                 body: bundleData,
@@ -218,7 +218,7 @@ async function syncProject({ localPath, projectId, endpoint, token }) {
         if (ahead > 0) {
             tmpBundle = await createBundle(localPath, serverSha)
             const bundleData = fs.readFileSync(tmpBundle)
-            const pushRes = await fetch(`${endpoint}/projects/${projectId}/sync/push`, {
+            const pushRes = await fetch(`${endpoint}/api/v1/projects/${projectId}/sync/push`, {
                 method:  "POST",
                 headers: {
                     Authorization:  `Bearer ${token}`,
@@ -249,7 +249,7 @@ async function getStatus({ localPath, projectId, endpoint, token }) {
     if (!hasAriProject(localPath)) return { state: "uninitialized" }
 
     const clientSha = await getHead(localPath)
-    const url = `${endpoint}/projects/${projectId}/sync/status${clientSha ? `?clientSha=${clientSha}` : ""}`
+    const url = `${endpoint}/api/v1/projects/${projectId}/sync/status${clientSha ? `?clientSha=${clientSha}` : ""}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return { state: "error", message: `HTTP ${res.status}` }
 
